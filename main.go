@@ -500,11 +500,6 @@ func main() {
 
 func loadAssets() {
 	var err error
-	submarineImage, _, err = ebitenutil.NewImageFromFile("assets/images/submarine.png")
-	if err != nil {
-		fmt.Println("An asset is missing, running extractor...")
-		_extractAssets()
-	}
 
 	submarineImage, _, err = ebitenutil.NewImageFromFile("assets/images/submarine.png")
 	if err != nil {
