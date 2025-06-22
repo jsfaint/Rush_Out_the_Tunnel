@@ -484,7 +484,7 @@ func (g *Game) drawGameScene(screen *ebiten.Image) {
 func (g *Game) drawGameHUD(screen *ebiten.Image) {
 	// Draw HUD text (score)
 	scoreText := fmt.Sprintf("Score: %d", g.score)
-	ebitenutil.DebugPrint(screen, scoreText)
+	text.Draw(screen, scoreText, basicfont.Face7x13, 5, 12, color.White)
 
 	// Draw bombs
 	for i := 0; i < g.bombs; i++ {
