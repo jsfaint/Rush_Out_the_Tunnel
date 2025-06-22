@@ -11,6 +11,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text"
+	"golang.org/x/image/font/basicfont"
 )
 
 const (
@@ -321,40 +323,38 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.drawGame(screen)
 	case StateHelp:
 		screen.Fill(color.White)
-		helpText := `
+		helpText := `Help about the game
+
 Hold [UP] to go up
 Release to go down
-
-[P] Pause the game (Not yet implemented)
-[X] Launch bomb (Not yet implemented)
-[Esc] Exit to Title (From Game)
-
-Collect coins to increase score!
-
-(: Have fun! :)
+[Z] Pause the game
+[X] Launch the bomb
+[Esc] Exit game
+Coin Increase score
+ (:  Have fun!  :)
 
 
 Press Enter to return
 `
-		ebitenutil.DebugPrint(screen, helpText)
+		text.Draw(screen, helpText, basicfont.Face7x13, 5, 15, color.Black)
 
 	case StateAbout:
 		screen.Fill(color.White)
-		aboutText := `
-Rush out the Tunnel
+		aboutText := `Rush out the Tunnel
 
-Version: 2.0 (Go Remake)
-
-Original Design: Anson
-Original Program: Jay
-Remake by: John (AI PM) & You!
-
+For WQX Lava 12K
+Version: 1.0
+Design : Anson
+Program: Jay
 Created: 6/15/2005
+
+Welcome to:
+www.emsky.net
 
 
 Press Enter to return
 `
-		ebitenutil.DebugPrint(screen, aboutText)
+		text.Draw(screen, aboutText, basicfont.Face7x13, 5, 15, color.Black)
 
 	case StateWin:
 		screen.Fill(color.White)
