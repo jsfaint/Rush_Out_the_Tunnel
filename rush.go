@@ -68,22 +68,23 @@ type Collectible struct {
 }
 
 type Game struct {
-	state          GameState
-	player         *Player
-	tunnels        []*Tunnel
-	collectibles   []*Collectible
-	distance       int
-	score          int
-	bombs          int
-	isBombing      bool
-	bombTimer      int
-	countdownTimer int
-	tunnelHeight   float64
-	tunnelTopY     float64
-	slope          int
-	upButtonRect   image.Rectangle
-	bombButtonRect image.Rectangle
-	menuChoice     int
+	state           GameState
+	player          *Player
+	tunnels         []*Tunnel
+	collectibles    []*Collectible
+	distance        int
+	score           int
+	bombs           int
+	isBombing       bool
+	bombTimer       int
+	countdownTimer  int
+	tunnelHeight    float64
+	tunnelTopY      float64
+	slope           int
+	upButtonRect    image.Rectangle
+	bombButtonRect  image.Rectangle
+	menuChoice      int
+	menuButtonRects []image.Rectangle
 }
 
 func NewGame() *Game {
@@ -93,6 +94,12 @@ func NewGame() *Game {
 	// Buttons are initialized once, not on every reset
 	g.upButtonRect = image.Rect(screenWidth-50, screenHeight-50, screenWidth-10, screenHeight-10)
 	g.bombButtonRect = image.Rect(10, screenHeight-50, 50, screenHeight-10)
+	g.menuButtonRects = []image.Rectangle{
+		image.Rect(122, 8, 122+34, 8+9),   // New Game
+		image.Rect(122, 23, 122+34, 23+9), // Help
+		image.Rect(122, 38, 122+34, 38+9), // About
+		image.Rect(122, 53, 122+34, 53+9), // Exit
+	}
 	return g
 }
 
@@ -158,17 +165,24 @@ func (g *Game) Update() error {
 				g.menuChoice = 3
 			}
 		}
+
+		// Check for mouse click on menu items
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			x, y := ebiten.CursorPosition()
+			for i, r := range g.menuButtonRects {
+				if (image.Point{x, y}).In(r) {
+					g.menuChoice = i
+					// Immediately execute the choice
+					if err := g.selectMenuItem(); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-			switch g.menuChoice {
-			case 0: // New Game
-				g.reset()
-				g.state = StateCountdown
-			case 1: // Help
-				g.state = StateHelp
-			case 2: // "With" on screen, means About
-				g.state = StateAbout
-			case 3: // Exit
-				return ebiten.Termination
+			if err := g.selectMenuItem(); err != nil {
+				return err
 			}
 		}
 	case StateCountdown:
@@ -176,9 +190,24 @@ func (g *Game) Update() error {
 	case StateGame:
 		g.updateGame()
 	case StateHelp, StateAbout, StateWin, StateGameOver:
-		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 			g.state = StateTitle
 		}
+	}
+	return nil
+}
+
+func (g *Game) selectMenuItem() error {
+	switch g.menuChoice {
+	case 0: // New Game
+		g.reset()
+		g.state = StateCountdown
+	case 1: // Help
+		g.state = StateHelp
+	case 2: // "With" on screen, means About
+		g.state = StateAbout
+	case 3: // Exit
+		return ebiten.Termination
 	}
 	return nil
 }
@@ -209,12 +238,20 @@ func (g *Game) updateGame() {
 	}
 
 	isPressingBomb := inpututil.IsKeyJustPressed(ebiten.KeyX)
-	// Check for touch input on the bomb button
-	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
-		x, y := ebiten.TouchPosition(id)
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		x, y := ebiten.CursorPosition()
 		if g.bombButtonRect.Min.X <= x && x < g.bombButtonRect.Max.X && g.bombButtonRect.Min.Y <= y && y < g.bombButtonRect.Max.Y {
 			isPressingBomb = true
-			break
+		}
+	}
+	// Check for touch input on the bomb button
+	if !isPressingBomb {
+		for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
+			x, y := ebiten.TouchPosition(id)
+			if g.bombButtonRect.Min.X <= x && x < g.bombButtonRect.Max.X && g.bombButtonRect.Min.Y <= y && y < g.bombButtonRect.Max.Y {
+				isPressingBomb = true
+				break
+			}
 		}
 	}
 
@@ -253,11 +290,21 @@ func (g *Game) updateGame() {
 
 	// Unify input
 	isPressingUp := ebiten.IsKeyPressed(ebiten.KeyUp)
-	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
-		x, y := ebiten.TouchPosition(id)
+	// Check for mouse press on the up button
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		x, y := ebiten.CursorPosition()
 		if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
 			isPressingUp = true
-			break
+		}
+	}
+	// Check for touch press on the up button
+	if !isPressingUp {
+		for _, id := range ebiten.TouchIDs() {
+			x, y := ebiten.TouchPosition(id)
+			if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
+				isPressingUp = true
+				break
+			}
 		}
 	}
 
