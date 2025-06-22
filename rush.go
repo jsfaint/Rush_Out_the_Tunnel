@@ -1,9 +1,11 @@
-package main
+package rush
 
 import (
+	"embed"
 	"fmt"
 	"image"
 	"image/color"
+	_ "image/png"
 	"log"
 	"math"
 	"math/rand"
@@ -14,6 +16,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/text"
 	"golang.org/x/image/font/basicfont"
 )
+
+//go:embed assets/images
+var assetsFS embed.FS
 
 const (
 	screenWidth  = 160
@@ -480,43 +485,26 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return screenWidth, screenHeight
 }
 
-func main() {
-	loadAssets()
-
-	ebiten.SetWindowSize(screenWidth*5, screenHeight*5)
-	ebiten.SetWindowTitle("Rush Out the Tunnel")
-
-	game := NewGame()
-
-	if err := ebiten.RunGame(game); err != nil {
-		log.Fatal(err)
+func loadImage(path string) *ebiten.Image {
+	file, err := assetsFS.Open("assets/images/" + path)
+	if err != nil {
+		log.Fatalf("failed to open asset %s: %v", path, err)
 	}
+	defer file.Close()
+
+	img, _, err := image.Decode(file)
+	if err != nil {
+		log.Fatalf("failed to decode image %s: %v", path, err)
+	}
+
+	return ebiten.NewImageFromImage(img)
 }
 
-func loadAssets() {
-	var err error
-	submarineImage, _, err = ebitenutil.NewImageFromFile("assets/images/submarine.png")
-	if err != nil {
-		log.Fatalf("failed to load submarine image: %v", err)
-	}
-	titleImage, _, err = ebitenutil.NewImageFromFile("assets/images/title.png")
-	if err != nil {
-		log.Fatalf("failed to load title image: %v", err)
-	}
-	gameoverImage, _, err = ebitenutil.NewImageFromFile("assets/images/gameover.png")
-	if err != nil {
-		log.Fatalf("failed to load gameover image: %v", err)
-	}
-	winImage, _, err = ebitenutil.NewImageFromFile("assets/images/win.png")
-	if err != nil {
-		log.Fatalf("failed to load win image: %v", err)
-	}
-	coinImage, _, err = ebitenutil.NewImageFromFile("assets/images/coin.png")
-	if err != nil {
-		log.Fatalf("failed to load coin image: %v", err)
-	}
-	bombImage, _, err = ebitenutil.NewImageFromFile("assets/images/bomb.png")
-	if err != nil {
-		log.Fatalf("failed to load bomb image: %v", err)
-	}
+func LoadAssets() {
+	submarineImage = loadImage("submarine.png")
+	titleImage = loadImage("title.png")
+	gameoverImage = loadImage("gameover.png")
+	winImage = loadImage("win.png")
+	coinImage = loadImage("coin.png")
+	bombImage = loadImage("bomb.png")
 }
