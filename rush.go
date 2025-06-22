@@ -92,8 +92,6 @@ func NewGame() *Game {
 	g.reset() // reset is called first
 	g.state = StateTitle
 	// Buttons are initialized once, not on every reset
-	g.upButtonRect = image.Rect(screenWidth-50, screenHeight-50, screenWidth-10, screenHeight-10)
-	g.bombButtonRect = image.Rect(10, screenHeight-50, 50, screenHeight-10)
 	g.menuButtonRects = []image.Rectangle{
 		image.Rect(122, 8, 122+34, 8+9),   // New Game
 		image.Rect(122, 23, 122+34, 23+9), // Help
@@ -124,8 +122,9 @@ func (g *Game) reset() {
 
 	// Define button position and size
 	buttonSize := 40
-	g.upButtonRect = image.Rect(screenWidth-buttonSize-10, screenHeight-buttonSize-10, screenWidth-10, screenHeight-10)
-	g.bombButtonRect = image.Rect(10, screenHeight-50, 50, screenHeight-10)
+	margin := 5
+	g.bombButtonRect = image.Rect(margin, screenHeight-buttonSize-margin, margin+buttonSize, screenHeight-margin)
+	g.upButtonRect = image.Rect(screenWidth-buttonSize-margin, screenHeight-buttonSize-margin, screenWidth-margin, screenHeight-margin)
 
 	for x := 0.0; x < screenWidth+10; x += 10 {
 		g.spawnTunnel(x)
