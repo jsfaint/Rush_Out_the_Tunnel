@@ -4,14 +4,9 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/png"
 	"log"
 	"math"
 	"math/rand"
-	"os"
-	"regexp"
-	"strconv"
-	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -500,7 +495,6 @@ func main() {
 
 func loadAssets() {
 	var err error
-
 	submarineImage, _, err = ebitenutil.NewImageFromFile("assets/images/submarine.png")
 	if err != nil {
 		log.Fatalf("failed to load submarine image: %v", err)
@@ -525,96 +519,4 @@ func loadAssets() {
 	if err != nil {
 		log.Fatalf("failed to load bomb image: %v", err)
 	}
-}
-
-// _extractAssets is the moved asset extraction logic.
-// It is kept for reference but not called on every run.
-func _extractAssets() {
-	sourcePath := "../Rush_Out_the_Tunnel_For_Lava1.txt"
-	content, err := os.ReadFile(sourcePath)
-	if err != nil {
-		log.Printf("Failed to read source file for asset extraction: %v", err)
-		return
-	}
-	sourceCode := string(content)
-	extractAndSaveAsset(sourceCode, "coin", 3, 5, "assets/images/coin.png")
-	extractAndSaveAsset(sourceCode, "bomb", 6, 3, "assets/images/bomb.png")
-	extractAndSaveAsset(sourceCode, "submarine", 8, 4, "assets/images/submarine.png")
-	extractAndSaveAsset(sourceCode, "title", 160, 80, "assets/images/title.png")
-	extractAndSaveAsset(sourceCode, "gameover", 126, 80, "assets/images/gameover.png")
-	extractAndSaveAsset(sourceCode, "win", 160, 80, "assets/images/win.png")
-}
-
-func extractAndSaveAsset(source, name string, width, height int, outputPath string) {
-	// Check if file already exists
-	if _, err := os.Stat(outputPath); err == nil {
-		fmt.Printf("Asset '%s' already exists. Skipping.\n", name)
-		return
-	}
-
-	fmt.Printf("Extracting asset: %s\n", name)
-	re := regexp.MustCompile(fmt.Sprintf(`char\s+%s\[\d*\]\s*=\s*\{([^}]+)\};`, name))
-	matches := re.FindStringSubmatch(source)
-
-	if len(matches) < 2 {
-		fmt.Printf("Could not find asset data for '%s'\n", name)
-		return
-	}
-
-	byteString := strings.TrimSpace(matches[1])
-	byteParts := strings.Split(byteString, ",")
-
-	data := make([]byte, 0)
-	for _, part := range byteParts {
-		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, "0x") {
-			val, err := strconv.ParseUint(part[2:], 16, 8)
-			if err != nil {
-				fmt.Printf("Failed to parse hex value '%s': %v\n", part, err)
-				continue
-			}
-			data = append(data, byte(val))
-		}
-	}
-
-	if len(data) == 0 {
-		fmt.Printf("No data extracted for asset '%s'\n", name)
-		return
-	}
-
-	palette := color.Palette{color.Transparent, color.Black}
-	img := image.NewPaletted(image.Rect(0, 0, width, height), palette)
-
-	pixelDataIndex := 0
-	for y := 0; y < height; y++ {
-		for x_byte := 0; x_byte < (width+7)/8; x_byte++ {
-			if pixelDataIndex >= len(data) {
-				break
-			}
-			byteVal := data[pixelDataIndex]
-			pixelDataIndex++
-			for x_bit := 0; x_bit < 8; x_bit++ {
-				x := x_byte*8 + x_bit
-				if x >= width {
-					continue
-				}
-				if (byteVal>>(7-x_bit))&1 == 1 {
-					img.SetColorIndex(x, y, 1)
-				}
-			}
-		}
-	}
-
-	f, err := os.Create(outputPath)
-	if err != nil {
-		fmt.Printf("Failed to create file '%s': %v\n", outputPath, err)
-		return
-	}
-	defer f.Close()
-
-	if err := png.Encode(f, img); err != nil {
-		fmt.Printf("Failed to encode PNG for '%s': %v\n", name, err)
-		return
-	}
-	fmt.Printf("Successfully saved %s\n", outputPath)
 }
