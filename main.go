@@ -65,20 +65,31 @@ type Collectible struct {
 }
 
 type Game struct {
-	state        GameState
-	player       *Player
-	tunnels      []*Tunnel
-	collectibles []*Collectible
-	distance     int
-	score        int
-	bombs        int
-	isBombing    bool
-	bombTimer    int
-	tunnelHeight float64
-	tunnelTopY   float64
-	slope        int
-	upButtonRect image.Rectangle
-	menuChoice   int
+	state          GameState
+	player         *Player
+	tunnels        []*Tunnel
+	collectibles   []*Collectible
+	distance       int
+	score          int
+	bombs          int
+	isBombing      bool
+	bombTimer      int
+	tunnelHeight   float64
+	tunnelTopY     float64
+	slope          int
+	upButtonRect   image.Rectangle
+	bombButtonRect image.Rectangle
+	menuChoice     int
+}
+
+func NewGame() *Game {
+	g := &Game{}
+	g.reset() // reset is called first
+	g.state = StateTitle
+	// Buttons are initialized once, not on every reset
+	g.upButtonRect = image.Rect(screenWidth-50, screenHeight-50, screenWidth-10, screenHeight-10)
+	g.bombButtonRect = image.Rect(10, screenHeight-50, 50, screenHeight-10)
+	return g
 }
 
 func (g *Game) reset() {
@@ -94,12 +105,13 @@ func (g *Game) reset() {
 	g.bombTimer = 0
 	g.tunnelHeight = 50
 	g.tunnelTopY = 15
+	g.slope = 0
 	g.player.y = g.tunnelTopY + g.tunnelHeight/2
-	g.slope = 1 // Start flat
 
 	// Define button position and size
 	buttonSize := 40
 	g.upButtonRect = image.Rect(screenWidth-buttonSize-10, screenHeight-buttonSize-10, screenWidth-10, screenHeight-10)
+	g.bombButtonRect = image.Rect(10, screenHeight-50, 50, screenHeight-10)
 
 	for x := 0.0; x < screenWidth+10; x += 10 {
 		g.spawnTunnel(x)
@@ -178,7 +190,17 @@ func (g *Game) updateGame() {
 		return // Pause the game during the bomb effect
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyX) && g.bombs > 0 && !g.isBombing {
+	isPressingBomb := inpututil.IsKeyJustPressed(ebiten.KeyX)
+	// Check for touch input on the bomb button
+	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
+		x, y := ebiten.TouchPosition(id)
+		if g.bombButtonRect.Min.X <= x && x < g.bombButtonRect.Max.X && g.bombButtonRect.Min.Y <= y && y < g.bombButtonRect.Max.Y {
+			isPressingBomb = true
+			break
+		}
+	}
+
+	if isPressingBomb && g.bombs > 0 && !g.isBombing {
 		g.bombs--
 		g.isBombing = true
 		g.bombTimer = 15 // Flash for 1/4 second at 60fps
@@ -213,18 +235,11 @@ func (g *Game) updateGame() {
 
 	// Unify input
 	isPressingUp := ebiten.IsKeyPressed(ebiten.KeyUp)
-	touchIDs := ebiten.TouchIDs()
-	if len(touchIDs) > 0 {
-		for _, id := range touchIDs {
-			x, y := ebiten.TouchPosition(id)
-			point := image.Point{
-				X: x,
-				Y: y,
-			}
-			if point.In(g.upButtonRect) {
-				isPressingUp = true
-				break // One touch is enough
-			}
+	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
+		x, y := ebiten.TouchPosition(id)
+		if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
+			isPressingUp = true
+			break
 		}
 	}
 
@@ -383,9 +398,20 @@ func (g *Game) drawGame(screen *ebiten.Image) {
 		screen.DrawImage(bombImage, op)
 	}
 
-	// Draw the virtual button
+	// Draw the virtual up button
 	buttonColor := color.RGBA{100, 100, 100, 128} // Semi-transparent grey
 	ebitenutil.DrawRect(screen, float64(g.upButtonRect.Min.X), float64(g.upButtonRect.Min.Y), float64(g.upButtonRect.Dx()), float64(g.upButtonRect.Dy()), buttonColor)
+
+	// Draw the virtual bomb button
+	ebitenutil.DrawRect(screen, float64(g.bombButtonRect.Min.X), float64(g.bombButtonRect.Min.Y), float64(g.bombButtonRect.Dx()), float64(g.bombButtonRect.Dy()), buttonColor)
+	if bombImage != nil {
+		op := &ebiten.DrawImageOptions{}
+		iconW, iconH := bombImage.Size()
+		buttonW := g.bombButtonRect.Dx()
+		buttonH := g.bombButtonRect.Dy()
+		op.GeoM.Translate(float64(g.bombButtonRect.Min.X+(buttonW-iconW)/2), float64(g.bombButtonRect.Min.Y+(buttonH-iconH)/2))
+		screen.DrawImage(bombImage, op)
+	}
 
 	// Draw bomb flash effect
 	if g.isBombing {
@@ -405,9 +431,7 @@ func main() {
 	ebiten.SetWindowSize(screenWidth*5, screenHeight*5)
 	ebiten.SetWindowTitle("Rush Out the Tunnel")
 
-	game := &Game{}
-	game.reset()
-	game.state = StateTitle
+	game := NewGame()
 
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
