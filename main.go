@@ -16,6 +16,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 const (
@@ -29,6 +30,8 @@ type GameState int
 const (
 	StateTitle GameState = iota
 	StateGame
+	StateHelp
+	StateAbout
 	StateWin
 	StateGameOver
 )
@@ -72,6 +75,7 @@ type Game struct {
 	tunnelTopY   float64
 	slope        int
 	upButtonRect image.Rectangle
+	menuChoice   int
 }
 
 func (g *Game) reset() {
@@ -120,14 +124,32 @@ func (g *Game) spawnTunnel(x float64) {
 func (g *Game) Update() error {
 	switch g.state {
 	case StateTitle:
-		if ebiten.IsKeyPressed(ebiten.KeyEnter) {
-			g.reset()
-			g.state = StateGame
+		if inpututil.IsKeyJustPressed(ebiten.KeyDown) {
+			g.menuChoice = (g.menuChoice + 1) % 4
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
+			g.menuChoice--
+			if g.menuChoice < 0 {
+				g.menuChoice = 3
+			}
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+			switch g.menuChoice {
+			case 0: // New Game
+				g.reset()
+				g.state = StateGame
+			case 1: // Help
+				g.state = StateHelp
+			case 2: // "With" on screen, means About
+				g.state = StateAbout
+			case 3: // Exit
+				return ebiten.Termination
+			}
 		}
 	case StateGame:
 		g.updateGame()
-	case StateWin, StateGameOver:
-		if ebiten.IsKeyPressed(ebiten.KeyEnter) {
+	case StateHelp, StateAbout, StateWin, StateGameOver:
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 			g.state = StateTitle
 		}
 	}
@@ -241,8 +263,53 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		screen.Fill(color.White)
 		op := &ebiten.DrawImageOptions{}
 		screen.DrawImage(titleImage, op)
+
+		// Draw menu selector
+		// Adjusted Y and Height to better center the highlight on the text.
+		selectorY := float64(8 + g.menuChoice*15)
+		selectorColor := color.RGBA{R: 70, G: 130, B: 180, A: 128} // Semi-transparent SteelBlue
+		ebitenutil.DrawRect(screen, 122, selectorY, 34, 9, selectorColor)
+
 	case StateGame:
 		g.drawGame(screen)
+
+	case StateHelp:
+		screen.Fill(color.White)
+		helpText := `
+Hold [UP] to go up
+Release to go down
+
+[P] Pause the game (Not yet implemented)
+[X] Launch bomb (Not yet implemented)
+[Esc] Exit to Title (From Game)
+
+Collect coins to increase score!
+
+(: Have fun! :)
+
+
+Press Enter to return
+`
+		ebitenutil.DebugPrint(screen, helpText)
+
+	case StateAbout:
+		screen.Fill(color.White)
+		aboutText := `
+Rush out the Tunnel
+
+Version: 2.0 (Go Remake)
+
+Original Design: Anson
+Original Program: Jay
+Remake by: John (AI PM) & You!
+
+Created: 6/15/2005
+
+
+Press Enter to return
+`
+		ebitenutil.DebugPrint(screen, aboutText)
+
 	case StateWin:
 		screen.Fill(color.White)
 		op := &ebiten.DrawImageOptions{}
