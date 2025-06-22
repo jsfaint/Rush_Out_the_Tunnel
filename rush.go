@@ -329,16 +329,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case StateHelp:
 		screen.Fill(color.White)
 		helpText := `Help about the game
-
 Hold [UP] to go up
 Release to go down
 [Z] Pause the game
 [X] Launch the bomb
 [Esc] Exit game
 Coin Increase score
- (:  Have fun!  :)
-
-
+(:  Have fun!  :)
 Press Enter to return
 `
 		text.Draw(screen, helpText, basicfont.Face7x13, 5, 15, color.Black)
@@ -346,17 +343,12 @@ Press Enter to return
 	case StateAbout:
 		screen.Fill(color.White)
 		aboutText := `Rush out the Tunnel
-
 For WQX Lava 12K
 Version: 1.0
 Design : Anson
 Program: Jay
 Created: 6/15/2005
-
-Welcome to:
-www.emsky.net
-
-
+Welcome to: www.emsky.net
 Press Enter to return
 `
 		text.Draw(screen, aboutText, basicfont.Face7x13, 5, 15, color.Black)
