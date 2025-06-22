@@ -4,6 +4,7 @@ import (
 	"log"
 	"rush"
 
+	_ "github.com/ebitengine/hideconsole"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
