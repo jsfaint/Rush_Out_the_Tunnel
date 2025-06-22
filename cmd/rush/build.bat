@@ -1,0 +1,1 @@
+gomobile build -target=android -o rush.apk -ldflags="-s -w" .
