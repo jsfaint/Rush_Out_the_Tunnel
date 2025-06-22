@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/png"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"regexp"
@@ -28,6 +29,7 @@ type GameState int
 
 const (
 	StateTitle GameState = iota
+	StateCountdown
 	StateGame
 	StateHelp
 	StateAbout
@@ -74,6 +76,7 @@ type Game struct {
 	bombs          int
 	isBombing      bool
 	bombTimer      int
+	countdownTimer int
 	tunnelHeight   float64
 	tunnelTopY     float64
 	slope          int
@@ -94,7 +97,9 @@ func NewGame() *Game {
 
 func (g *Game) reset() {
 	g.player = &Player{
-		x: screenWidth / 4,
+		x:  screenWidth / 4,
+		y:  screenHeight / 2,
+		vy: 0,
 	}
 	g.tunnels = []*Tunnel{}
 	g.collectibles = []*Collectible{}
@@ -103,6 +108,7 @@ func (g *Game) reset() {
 	g.bombs = 3
 	g.isBombing = false
 	g.bombTimer = 0
+	g.countdownTimer = 180 // 3 seconds at 60 FPS
 	g.tunnelHeight = 50
 	g.tunnelTopY = 15
 	g.slope = 0
@@ -155,7 +161,7 @@ func (g *Game) Update() error {
 			switch g.menuChoice {
 			case 0: // New Game
 				g.reset()
-				g.state = StateGame
+				g.state = StateCountdown
 			case 1: // Help
 				g.state = StateHelp
 			case 2: // "With" on screen, means About
@@ -164,6 +170,8 @@ func (g *Game) Update() error {
 				return ebiten.Termination
 			}
 		}
+	case StateCountdown:
+		g.updateCountdown()
 	case StateGame:
 		g.updateGame()
 	case StateHelp, StateAbout, StateWin, StateGameOver:
@@ -172,6 +180,15 @@ func (g *Game) Update() error {
 		}
 	}
 	return nil
+}
+
+func (g *Game) updateCountdown() {
+	if g.countdownTimer > 0 {
+		g.countdownTimer--
+	}
+	if g.countdownTimer <= 0 {
+		g.state = StateGame
+	}
 }
 
 func (g *Game) updateGame() {
@@ -303,19 +320,11 @@ func (g *Game) updateGame() {
 func (g *Game) Draw(screen *ebiten.Image) {
 	switch g.state {
 	case StateTitle:
-		screen.Fill(color.White)
-		op := &ebiten.DrawImageOptions{}
-		screen.DrawImage(titleImage, op)
-
-		// Draw menu selector
-		// Adjusted Y and Height to better center the highlight on the text.
-		selectorY := float64(8 + g.menuChoice*15)
-		selectorColor := color.RGBA{R: 70, G: 130, B: 180, A: 128} // Semi-transparent SteelBlue
-		ebitenutil.DrawRect(screen, 122, selectorY, 34, 9, selectorColor)
-
+		g.drawTitle(screen)
+	case StateCountdown:
+		g.drawCountdown(screen)
 	case StateGame:
 		g.drawGame(screen)
-
 	case StateHelp:
 		screen.Fill(color.White)
 		helpText := `
@@ -365,7 +374,52 @@ Press Enter to return
 	}
 }
 
-func (g *Game) drawGame(screen *ebiten.Image) {
+func (g *Game) drawTitle(screen *ebiten.Image) {
+	screen.Fill(color.White)
+	op := &ebiten.DrawImageOptions{}
+	screen.DrawImage(titleImage, op)
+
+	// Draw menu selector
+	// Adjusted Y and Height to better center the highlight on the text.
+	selectorY := float64(8 + g.menuChoice*15)
+	selectorColor := color.RGBA{R: 70, G: 130, B: 180, A: 128} // Semi-transparent SteelBlue
+	ebitenutil.DrawRect(screen, 122, selectorY, 34, 9, selectorColor)
+}
+
+func (g *Game) drawCountdown(screen *ebiten.Image) {
+	g.drawGameScene(screen)
+	g.drawGameHUD(screen)
+
+	countdownNum := int(math.Ceil(float64(g.countdownTimer) / 60.0))
+	if countdownNum > 0 {
+		var textStr string
+		switch countdownNum {
+		case 3:
+			textStr = "3"
+		case 2:
+			textStr = "2"
+		case 1:
+			textStr = "1"
+		}
+
+		// Create a temporary offscreen image to draw the text on.
+		textImgWidth := 8
+		textImgHeight := 16
+		textImg := ebiten.NewImage(textImgWidth, textImgHeight)
+
+		// Use DebugPrint to draw the text onto the temporary image.
+		ebitenutil.DebugPrint(textImg, textStr)
+
+		// Now, draw the temporary image onto the main screen, centered.
+		op := &ebiten.DrawImageOptions{}
+		textX := (screenWidth - textImgWidth) / 2
+		textY := (screenHeight - textImgHeight) / 2
+		op.GeoM.Translate(float64(textX), float64(textY))
+		screen.DrawImage(textImg, op)
+	}
+}
+
+func (g *Game) drawGameScene(screen *ebiten.Image) {
 	screen.Fill(backgroundColor)
 
 	for _, t := range g.tunnels {
@@ -388,10 +442,14 @@ func (g *Game) drawGame(screen *ebiten.Image) {
 	} else {
 		ebitenutil.DebugPrint(screen, "Loading assets...")
 	}
+}
 
-	// Draw HUD
+func (g *Game) drawGameHUD(screen *ebiten.Image) {
+	// Draw HUD text (score)
 	scoreText := fmt.Sprintf("Score: %d", g.score)
 	ebitenutil.DebugPrint(screen, scoreText)
+
+	// Draw bombs
 	for i := 0; i < g.bombs; i++ {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Translate(float64(screenWidth-15-i*8), 5)
@@ -412,6 +470,11 @@ func (g *Game) drawGame(screen *ebiten.Image) {
 		op.GeoM.Translate(float64(g.bombButtonRect.Min.X+(buttonW-iconW)/2), float64(g.bombButtonRect.Min.Y+(buttonH-iconH)/2))
 		screen.DrawImage(bombImage, op)
 	}
+}
+
+func (g *Game) drawGame(screen *ebiten.Image) {
+	g.drawGameScene(screen)
+	g.drawGameHUD(screen)
 
 	// Draw bomb flash effect
 	if g.isBombing {
