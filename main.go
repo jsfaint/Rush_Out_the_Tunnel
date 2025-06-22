@@ -5,7 +5,6 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -42,6 +41,7 @@ var (
 	gameoverImage   *ebiten.Image
 	winImage        *ebiten.Image
 	coinImage       *ebiten.Image
+	bombImage       *ebiten.Image
 	tunnelWallColor = color.RGBA{139, 69, 19, 255}  // SaddleBrown
 	backgroundColor = color.RGBA{70, 130, 180, 255} // SteelBlue
 )
@@ -71,6 +71,9 @@ type Game struct {
 	collectibles []*Collectible
 	distance     int
 	score        int
+	bombs        int
+	isBombing    bool
+	bombTimer    int
 	tunnelHeight float64
 	tunnelTopY   float64
 	slope        int
@@ -86,6 +89,9 @@ func (g *Game) reset() {
 	g.collectibles = []*Collectible{}
 	g.distance = 0
 	g.score = 0
+	g.bombs = 3
+	g.isBombing = false
+	g.bombTimer = 0
 	g.tunnelHeight = 50
 	g.tunnelTopY = 15
 	g.player.y = g.tunnelTopY + g.tunnelHeight/2
@@ -157,6 +163,28 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) updateGame() {
+	if g.isBombing {
+		g.bombTimer--
+		if g.bombTimer <= 0 {
+			g.isBombing = false
+			// Clear all obstacles after the flash
+			g.tunnels = []*Tunnel{}
+			g.collectibles = []*Collectible{}
+			// Repopulate the screen to continue
+			for x := 0.0; x < screenWidth+10; x += 10 {
+				g.spawnTunnel(x)
+			}
+		}
+		return // Pause the game during the bomb effect
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyX) && g.bombs > 0 && !g.isBombing {
+		g.bombs--
+		g.isBombing = true
+		g.bombTimer = 15 // Flash for 1/4 second at 60fps
+		return
+	}
+
 	g.distance++
 
 	// Score increases with distance
@@ -337,10 +365,6 @@ func (g *Game) drawGame(screen *ebiten.Image) {
 		screen.DrawImage(c.image, op)
 	}
 
-	// Draw the virtual button
-	buttonColor := color.RGBA{100, 100, 100, 128} // Semi-transparent grey
-	ebitenutil.DrawRect(screen, float64(g.upButtonRect.Min.X), float64(g.upButtonRect.Min.Y), float64(g.upButtonRect.Dx()), float64(g.upButtonRect.Dy()), buttonColor)
-
 	// Draw Player
 	if submarineImage != nil {
 		op := &ebiten.DrawImageOptions{}
@@ -350,9 +374,23 @@ func (g *Game) drawGame(screen *ebiten.Image) {
 		ebitenutil.DebugPrint(screen, "Loading assets...")
 	}
 
-	// Draw Score
+	// Draw HUD
 	scoreText := fmt.Sprintf("Score: %d", g.score)
 	ebitenutil.DebugPrint(screen, scoreText)
+	for i := 0; i < g.bombs; i++ {
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(screenWidth-15-i*8), 5)
+		screen.DrawImage(bombImage, op)
+	}
+
+	// Draw the virtual button
+	buttonColor := color.RGBA{100, 100, 100, 128} // Semi-transparent grey
+	ebitenutil.DrawRect(screen, float64(g.upButtonRect.Min.X), float64(g.upButtonRect.Min.Y), float64(g.upButtonRect.Dx()), float64(g.upButtonRect.Dy()), buttonColor)
+
+	// Draw bomb flash effect
+	if g.isBombing {
+		screen.Fill(color.White)
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -404,13 +442,17 @@ func loadAssets() {
 	if err != nil {
 		log.Fatalf("failed to load coin image: %v", err)
 	}
+	bombImage, _, err = ebitenutil.NewImageFromFile("assets/images/bomb.png")
+	if err != nil {
+		log.Fatalf("failed to load bomb image: %v", err)
+	}
 }
 
 // _extractAssets is the moved asset extraction logic.
 // It is kept for reference but not called on every run.
 func _extractAssets() {
 	sourcePath := "../Rush_Out_the_Tunnel_For_Lava1.txt"
-	content, err := ioutil.ReadFile(sourcePath)
+	content, err := os.ReadFile(sourcePath)
 	if err != nil {
 		log.Printf("Failed to read source file for asset extraction: %v", err)
 		return
