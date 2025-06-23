@@ -790,7 +790,7 @@ func LoadChineseFont() {
 		panic("无法解析中文字体: " + err.Error())
 	}
 	face, err := opentype.NewFace(ft, &opentype.FaceOptions{
-		Size:    14,
+		Size:    10,
 		DPI:     72,
 		Hinting: font.HintingFull,
 	})
