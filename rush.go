@@ -2,6 +2,7 @@ package rush
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -36,6 +38,9 @@ const (
 	StateAbout
 	StateWin
 	StateGameOver
+	StateNameInput
+	StatePause
+	StateExitConfirm
 )
 
 var (
@@ -48,6 +53,16 @@ var (
 	tunnelWallColor = color.RGBA{139, 69, 19, 255}  // SaddleBrown
 	backgroundColor = color.RGBA{70, 130, 180, 255} // SteelBlue
 )
+
+// 排行榜数据结构
+const highScoreFilePath = "rush-go/highscores.json"
+
+type HighScore struct {
+	Name  string `json:"name"`
+	Score int    `json:"score"`
+}
+
+var highScores [5]HighScore
 
 type Player struct {
 	x, y float64
@@ -85,9 +100,22 @@ type Game struct {
 	bombButtonRect  image.Rectangle
 	menuChoice      int
 	menuButtonRects []image.Rectangle
+
+	// 新增：消息提示
+	message           string
+	messageTimer      int    // 显示剩余帧数
+	nameInput         string // 玩家输入的名字
+	gameOverAnimFrame int    // GameOver动画帧
+	winAnimFrame      int    // Win动画帧
+
+	// 提示语相关
+	tips      []string
+	tipTimer  int
+	curTipIdx int
 }
 
 func NewGame() *Game {
+	_ = loadHighScores() // 启动时加载排行榜
 	g := &Game{}
 	g.reset() // reset is called first
 	g.state = StateTitle
@@ -129,6 +157,19 @@ func (g *Game) reset() {
 	for x := 0.0; x < screenWidth+10; x += 10 {
 		g.spawnTunnel(x)
 	}
+
+	g.tips = []string{
+		"I want a GF!  ", "Be careful~   ", "Take it easy~ ", "A red fish!   ",
+		"henhenhahi!   ", "QQ:171290999~ ", "QQ:68862232~  ", "I like NDS!   ",
+		"Have no money~", "A diamond!!!  ", "What's this?  ", "Up!Up!Up!!!   ",
+		"Foolish man!  ", "I'll come back", "Don't hit me! ", "We'll be eat! ",
+		"Sunshine~~~   ", "lalalalala~~  ", "Elephant~~    ", "You big nose! ",
+		"A lovely girl~", "Clever Anson~ ", "Handsome JAY~ ", "Take my soul~ ",
+		"I love NBA!   ", "A good game~  ", "Good ball!    ", "Lucky!        ",
+		"To rush out!  ", "NC_TOOLS!!    ", "I love 6502~  ",
+	}
+	g.tipTimer = 0
+	g.curTipIdx = 0
 }
 
 func (g *Game) spawnTunnel(x float64) {
@@ -198,14 +239,58 @@ func (g *Game) Update() error {
 				return err
 			}
 		}
+
+		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			g.state = StateExitConfirm
+			return nil
+		}
 	case StateCountdown:
 		g.updateCountdown()
 	case StateGame:
+		if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
+			g.state = StatePause
+			g.showMessage("暂停中", 60)
+			return nil
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			g.state = StateExitConfirm
+			return nil
+		}
 		g.updateGame()
 	case StateHelp, StateAbout, StateWin, StateGameOver:
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 			g.state = StateTitle
 		}
+	case StateNameInput:
+		// 处理玩家名字输入
+		for _, key := range ebiten.InputChars() {
+			if len(g.nameInput) < 8 && ((key >= 'A' && key <= 'Z') || (key >= 'a' && key <= 'z') || (key >= '0' && key <= '9')) {
+				g.nameInput += string(key)
+			}
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(g.nameInput) > 0 {
+			g.nameInput = g.nameInput[:len(g.nameInput)-1]
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && len(g.nameInput) > 0 {
+			g.insertHighScore(g.nameInput, g.score)
+			saveHighScores()
+			g.state = StateTitle
+		}
+		return nil
+	case StatePause:
+		if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
+			g.state = StateGame
+			g.showMessage("继续游戏", 60)
+		}
+		return nil
+	case StateExitConfirm:
+		if inpututil.IsKeyJustPressed(ebiten.KeyY) {
+			return ebiten.Termination
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyN) || inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			g.state = StateTitle
+		}
+		return nil
 	}
 	return nil
 }
@@ -272,7 +357,11 @@ func (g *Game) updateGame() {
 		g.bombs--
 		g.isBombing = true
 		g.bombTimer = 15 // Flash for 1/4 second at 60fps
+		g.showMessage("炸弹！", 30)
 		return
+	}
+	if isPressingBomb && g.bombs == 0 {
+		g.showMessage("炸弹已用尽", 60)
 	}
 
 	g.distance++
@@ -284,6 +373,8 @@ func (g *Game) updateGame() {
 
 	// Win condition
 	if g.distance >= 4000 {
+		g.winAnimFrame = 0
+		g.showMessage("胜利！", 60)
 		g.state = StateWin
 		return
 	}
@@ -371,11 +462,19 @@ func (g *Game) updateGame() {
 		collectibleRect := image.Rect(int(c.x), int(c.y), int(c.x)+c.w, int(c.y)+c.h)
 		if playerRect.Overlaps(collectibleRect) {
 			g.score += 5 // You got a coin!
+			g.showMessage("获得金币！", 30)
 		} else if c.x+float64(c.w) > 0 { // Keep it if it's still on screen
 			remainingCollectibles = append(remainingCollectibles, c)
 		}
 	}
 	g.collectibles = remainingCollectibles
+
+	// 定时显示提示语
+	g.tipTimer++
+	if g.tipTimer%200 == 0 {
+		g.curTipIdx = rand.Intn(len(g.tips))
+		g.showMessage(g.tips[g.curTipIdx], 60)
+	}
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -415,13 +514,49 @@ Press Enter to return
 
 	case StateWin:
 		screen.Fill(color.White)
-		op := &ebiten.DrawImageOptions{}
-		screen.DrawImage(winImage, op)
+		msg := "YOU WIN"
+		letters := g.winAnimFrame/15 + 1
+		if letters > len(msg) {
+			letters = len(msg)
+		}
+		text.Draw(screen, msg[:letters], basicfont.Face7x13, 50, 40, color.RGBA{0, 128, 0, 255})
+		if g.winAnimFrame < len(msg)*15 {
+			g.winAnimFrame++
+		}
+		return
 	case StateGameOver:
 		screen.Fill(color.White)
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(float64(screenWidth/2-gameoverImage.Bounds().Dx()/2), 0)
-		screen.DrawImage(gameoverImage, op)
+		msg := "GAME OVER"
+		letters := g.gameOverAnimFrame/15 + 1
+		if letters > len(msg) {
+			letters = len(msg)
+		}
+		text.Draw(screen, msg[:letters], basicfont.Face7x13, 40, 40, color.RGBA{255, 0, 0, 255})
+		if g.gameOverAnimFrame < len(msg)*15 {
+			g.gameOverAnimFrame++
+		}
+		return
+	case StateNameInput:
+		screen.Fill(color.White)
+		prompt := "请输入你的名字 (A-Z, 0-9):"
+		text.Draw(screen, prompt, basicfont.Face7x13, 20, 30, color.Black)
+		text.Draw(screen, g.nameInput+"_", basicfont.Face7x13, 20, 50, color.RGBA{0, 0, 255, 255})
+		text.Draw(screen, "按Enter确认", basicfont.Face7x13, 20, 70, color.Gray{128})
+		return
+	case StatePause:
+		screen.Fill(color.White)
+		text.Draw(screen, "暂停中", basicfont.Face7x13, 60, 40, color.RGBA{255, 0, 0, 255})
+		return
+	case StateExitConfirm:
+		screen.Fill(color.White)
+		text.Draw(screen, "确认退出？Y/N", basicfont.Face7x13, 40, 40, color.RGBA{255, 0, 0, 255})
+		return
+	}
+
+	// 消息提示统一绘制
+	if g.messageTimer > 0 {
+		text.Draw(screen, g.message, basicfont.Face7x13, 40, 75, color.RGBA{0, 0, 0, 255})
+		g.messageTimer--
 	}
 }
 
@@ -559,4 +694,64 @@ func LoadAssets() {
 	winImage = loadImage("win.png")
 	coinImage = loadImage("coin.png")
 	bombImage = loadImage("bomb.png")
+}
+
+// 排行榜读写
+func loadHighScores() error {
+	file, err := os.Open(highScoreFilePath)
+	if err != nil {
+		// 文件不存在则初始化为空
+		for i := range highScores {
+			highScores[i] = HighScore{"", 0}
+		}
+		return nil
+	}
+	defer file.Close()
+	dec := json.NewDecoder(file)
+	var loaded []HighScore
+	if err := dec.Decode(&loaded); err != nil {
+		return err
+	}
+	for i := range highScores {
+		if i < len(loaded) {
+			highScores[i] = loaded[i]
+		} else {
+			highScores[i] = HighScore{"", 0}
+		}
+	}
+	return nil
+}
+
+func saveHighScores() error {
+	file, err := os.Create(highScoreFilePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	enc := json.NewEncoder(file)
+	return enc.Encode(highScores[:])
+}
+
+// 消息提示方法
+func (g *Game) showMessage(msg string, duration int) {
+	g.message = msg
+	g.messageTimer = duration
+}
+
+func (g *Game) insertHighScore(name string, score int) {
+	// 插入新分数并排序，保留前5名
+	inserted := false
+	for i := 0; i < len(highScores); i++ {
+		if !inserted && score > highScores[i].Score {
+			// 后移低分
+			copy(highScores[i+1:], highScores[i:len(highScores)-1])
+			highScores[i] = HighScore{name, score}
+			inserted = true
+			break
+		}
+	}
+}
+
+func (g *Game) isHighScore(score int) bool {
+	return score > highScores[len(highScores)-1].Score
 }
