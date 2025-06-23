@@ -132,11 +132,10 @@ func NewGame() *Game {
 	g.state = StateTitle
 	// Buttons are initialized once, not on every reset
 	g.menuButtonRects = []image.Rectangle{
-		image.Rect(122, 8, 122+34, 8+9),   // 排行榜
-		image.Rect(122, 23, 122+34, 23+9), // New Game
-		image.Rect(122, 38, 122+34, 38+9), // Help
-		image.Rect(122, 53, 122+34, 53+9), // About
-		image.Rect(122, 68, 122+34, 68+9), // Exit
+		image.Rect(122, 8, 122+34, 8+9),   // New Game
+		image.Rect(122, 23, 122+34, 23+9), // Help
+		image.Rect(122, 38, 122+34, 38+9), // About
+		image.Rect(122, 53, 122+34, 53+9), // Exit
 	}
 	return g
 }
@@ -344,15 +343,13 @@ func (g *Game) Update() error {
 func (g *Game) selectMenuItem() error {
 	switch g.menuChoice {
 	case 0: // 排行榜
-		g.state = StateHighScoresThenGame
-	case 1: // New Game
 		g.reset()
-		g.state = StateCountdown
-	case 2: // Help
+		g.state = StateHighScoresThenGame
+	case 1: // Help
 		g.state = StateHelp
-	case 3: // About
+	case 2: // About
 		g.state = StateAbout
-	case 4: // Exit
+	case 3: // Exit
 		return ebiten.Termination
 	}
 	return nil
