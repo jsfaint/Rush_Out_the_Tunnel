@@ -179,6 +179,20 @@ func (g *Game) Update() error {
 			}
 		}
 
+		// Check for touch click on menu items
+		for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
+			x, y := ebiten.TouchPosition(id)
+			for i, r := range g.menuButtonRects {
+				if (image.Point{x, y}).In(r) {
+					g.menuChoice = i
+					// Immediately execute the choice
+					if err := g.selectMenuItem(); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 			if err := g.selectMenuItem(); err != nil {
 				return err
