@@ -15,7 +15,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/hajimehoshi/ebiten/v2/text"
+	text "github.com/hajimehoshi/ebiten/v2/text/v2"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 )
@@ -26,7 +26,7 @@ var assetsFS embed.FS
 //go:embed assets/fonts/zpix.ttf
 var zpixFontData []byte
 
-var chineseFontFace font.Face
+var chineseFontFace text.Face
 
 const (
 	screenWidth  = 160
@@ -518,6 +518,14 @@ func (g *Game) updateGame() {
 	}
 }
 
+// drawText 辅助函数，简化 text/v2 的文本绘制
+func drawText(screen *ebiten.Image, str string, x, y int, clr color.Color) {
+	dopt := &text.DrawOptions{}
+	dopt.GeoM.Translate(float64(x), float64(y))
+	dopt.ColorScale.ScaleWithColor(clr)
+	text.Draw(screen, str, chineseFontFace, dopt)
+}
+
 func (g *Game) Draw(screen *ebiten.Image) {
 	switch g.state {
 	case StateTitle:
@@ -538,7 +546,7 @@ Coin Increase score
 (:  Have fun!  :)
 Press Enter to return
 `
-		text.Draw(screen, helpText, chineseFontFace, 5, 15, color.Black)
+		drawText(screen, helpText, 5, 15, color.Black)
 
 	case StateAbout:
 		screen.Fill(color.White)
@@ -551,7 +559,7 @@ Created: 6/15/2005
 Welcome to: www.emsky.net
 Press Enter to return
 `
-		text.Draw(screen, aboutText, chineseFontFace, 5, 15, color.Black)
+		drawText(screen, aboutText, 5, 15, color.Black)
 
 	case StateWin:
 		screen.Fill(color.White)
@@ -560,7 +568,7 @@ Press Enter to return
 		if letters > len(msg) {
 			letters = len(msg)
 		}
-		text.Draw(screen, msg[:letters], chineseFontFace, 50, 40, color.RGBA{0, 128, 0, 255})
+		drawText(screen, msg[:letters], 50, 40, color.RGBA{0, 128, 0, 255})
 		if g.winAnimFrame < len(msg)*15 {
 			g.winAnimFrame++
 		}
@@ -593,12 +601,12 @@ Press Enter to return
 	case StateNameInput:
 		screen.Fill(color.White)
 		prompt := "请输入你的名字 (A-Z, 0-9):"
-		text.Draw(screen, prompt, chineseFontFace, 20, 30, color.Black)
-		text.Draw(screen, g.nameInput+"_", chineseFontFace, 20, 50, color.RGBA{0, 0, 255, 255})
-		text.Draw(screen, "按Enter确认", chineseFontFace, 20, 70, color.Gray{128})
+		drawText(screen, prompt, 20, 30, color.Black)
+		drawText(screen, g.nameInput+"_", 20, 50, color.RGBA{0, 0, 255, 255})
+		drawText(screen, "按Enter确认", 20, 70, color.Gray{128})
 		// 显示当前高分榜
 		title := "高分榜 Top 5"
-		text.Draw(screen, title, chineseFontFace, 40, 90, color.RGBA{0, 0, 0, 255})
+		drawText(screen, title, 40, 90, color.RGBA{0, 0, 0, 255})
 		for i, hs := range highScores {
 			name := hs.Name
 			if name == "" {
@@ -611,38 +619,38 @@ Press Enter to return
 				colorScore = color.RGBA{255, 0, 0, 255}
 			}
 			scoreStr := fmt.Sprintf("%d", hs.Score)
-			text.Draw(screen, fmt.Sprintf("%d. %s", i+1, name), chineseFontFace, 30, 115+20*i, colorName)
-			text.Draw(screen, scoreStr, chineseFontFace, 140, 115+20*i, colorScore)
+			drawText(screen, fmt.Sprintf("%d. %s", i+1, name), 30, 115+20*i, colorName)
+			drawText(screen, scoreStr, 140, 115+20*i, colorScore)
 		}
 		return
 	case StatePause:
 		screen.Fill(color.White)
-		text.Draw(screen, "暂停中", chineseFontFace, 60, 40, color.RGBA{255, 0, 0, 255})
+		drawText(screen, "暂停中", 60, 40, color.RGBA{255, 0, 0, 255})
 		return
 	case StateExitConfirm:
 		screen.Fill(color.White)
-		text.Draw(screen, "确认退出？Y/N", chineseFontFace, 40, 40, color.RGBA{255, 0, 0, 255})
+		drawText(screen, "确认退出？Y/N", 40, 40, color.RGBA{255, 0, 0, 255})
 		return
 	case StateHighScores:
 		screen.Fill(color.White)
 		title := "高分榜 Top 5"
-		text.Draw(screen, title, chineseFontFace, 40, 20, color.RGBA{0, 0, 0, 255})
+		drawText(screen, title, 40, 20, color.RGBA{0, 0, 0, 255})
 		for i, hs := range highScores {
 			name := hs.Name
 			if name == "" {
 				name = "---"
 			}
 			scoreStr := fmt.Sprintf("%d", hs.Score)
-			text.Draw(screen, fmt.Sprintf("%d. %s", i+1, name), chineseFontFace, 30, 45+25*i, color.RGBA{0, 0, 128, 255})
-			text.Draw(screen, scoreStr, chineseFontFace, 140, 45+25*i, color.RGBA{128, 0, 0, 255})
+			drawText(screen, fmt.Sprintf("%d. %s", i+1, name), 30, 45+25*i, color.RGBA{0, 0, 128, 255})
+			drawText(screen, scoreStr, 140, 45+25*i, color.RGBA{128, 0, 0, 255})
 		}
-		text.Draw(screen, "按Enter返回菜单", chineseFontFace, 30, 180, color.Gray{128})
+		drawText(screen, "按Enter返回菜单", 30, 180, color.Gray{128})
 		return
 	}
 
 	// 消息提示统一绘制
 	if g.messageTimer > 0 {
-		text.Draw(screen, g.message, chineseFontFace, 40, 75, color.RGBA{0, 0, 0, 255})
+		drawText(screen, g.message, 40, 75, color.RGBA{0, 0, 0, 255})
 		g.messageTimer--
 	}
 }
@@ -722,7 +730,7 @@ func (g *Game) drawGameScene(screen *ebiten.Image) {
 func (g *Game) drawGameHUD(screen *ebiten.Image) {
 	// Draw HUD text (score)
 	scoreText := fmt.Sprintf("Score: %d", g.score)
-	text.Draw(screen, scoreText, chineseFontFace, 5, 12, color.White)
+	drawText(screen, scoreText, 5, 12, color.White)
 
 	// Draw bombs
 	for i := 0; i < g.bombs; i++ {
@@ -789,7 +797,7 @@ func LoadChineseFont() {
 	if err != nil {
 		panic("无法创建中文字体Face: " + err.Error())
 	}
-	chineseFontFace = face
+	chineseFontFace = text.NewGoXFace(face)
 }
 
 func LoadAssets() {
