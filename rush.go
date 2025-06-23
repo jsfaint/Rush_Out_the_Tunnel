@@ -463,6 +463,7 @@ func (g *Game) updateGame() {
 		if playerRect.Overlaps(collectibleRect) {
 			g.score += 5 // You got a coin!
 			g.showMessage("获得金币！", 30)
+			continue
 		} else if c.x+float64(c.w) > 0 { // Keep it if it's still on screen
 			remainingCollectibles = append(remainingCollectibles, c)
 		}
@@ -615,9 +616,11 @@ func (g *Game) drawGameScene(screen *ebiten.Image) {
 
 	// Draw Collectibles
 	for _, c := range g.collectibles {
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(c.x, c.y)
-		screen.DrawImage(c.image, op)
+		if c.image != nil {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(c.x, c.y)
+			screen.DrawImage(c.image, op)
+		}
 	}
 
 	// Draw Player
