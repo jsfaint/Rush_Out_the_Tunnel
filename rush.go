@@ -48,6 +48,7 @@ const (
 	StatePause
 	StateExitConfirm
 	StateHighScores
+	StateHighScoresThenGame // 新增：排行榜后自动进入游戏
 )
 
 var (
@@ -329,6 +330,13 @@ func (g *Game) Update() error {
 			g.state = StateTitle
 		}
 		return nil
+	case StateHighScoresThenGame:
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			g.reset()
+			g.state = StateCountdown
+			return nil
+		}
+		return nil
 	}
 	return nil
 }
@@ -336,7 +344,7 @@ func (g *Game) Update() error {
 func (g *Game) selectMenuItem() error {
 	switch g.menuChoice {
 	case 0: // 排行榜
-		g.state = StateHighScores
+		g.state = StateHighScoresThenGame
 	case 1: // New Game
 		g.reset()
 		g.state = StateCountdown
@@ -631,7 +639,7 @@ Press Enter to return
 		screen.Fill(color.White)
 		drawText(screen, "确认退出？Y/N", 40, 40, color.RGBA{255, 0, 0, 255})
 		return
-	case StateHighScores:
+	case StateHighScores, StateHighScoresThenGame:
 		screen.Fill(color.White)
 		title := "高分榜 Top 5"
 		drawText(screen, title, 40, 20, color.RGBA{0, 0, 0, 255})
@@ -644,7 +652,7 @@ Press Enter to return
 			drawText(screen, fmt.Sprintf("%d. %s", i+1, name), 30, 45+25*i, color.RGBA{0, 0, 128, 255})
 			drawText(screen, scoreStr, 140, 45+25*i, color.RGBA{128, 0, 0, 255})
 		}
-		drawText(screen, "按Enter返回菜单", 30, 180, color.Gray{128})
+		drawText(screen, "按Enter返回/继续", 30, 180, color.Gray{128})
 		return
 	}
 
