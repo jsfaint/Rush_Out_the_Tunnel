@@ -16,11 +16,17 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text"
-	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
 )
 
 //go:embed assets/images
 var assetsFS embed.FS
+
+//go:embed assets/fonts/zpix.ttf
+var zpixFontData []byte
+
+var chineseFontFace font.Face
 
 const (
 	screenWidth  = 160
@@ -498,7 +504,7 @@ Coin Increase score
 (:  Have fun!  :)
 Press Enter to return
 `
-		text.Draw(screen, helpText, basicfont.Face7x13, 5, 15, color.Black)
+		text.Draw(screen, helpText, chineseFontFace, 5, 15, color.Black)
 
 	case StateAbout:
 		screen.Fill(color.White)
@@ -511,7 +517,7 @@ Created: 6/15/2005
 Welcome to: www.emsky.net
 Press Enter to return
 `
-		text.Draw(screen, aboutText, basicfont.Face7x13, 5, 15, color.Black)
+		text.Draw(screen, aboutText, chineseFontFace, 5, 15, color.Black)
 
 	case StateWin:
 		screen.Fill(color.White)
@@ -520,7 +526,7 @@ Press Enter to return
 		if letters > len(msg) {
 			letters = len(msg)
 		}
-		text.Draw(screen, msg[:letters], basicfont.Face7x13, 50, 40, color.RGBA{0, 128, 0, 255})
+		text.Draw(screen, msg[:letters], chineseFontFace, 50, 40, color.RGBA{0, 128, 0, 255})
 		if g.winAnimFrame < len(msg)*15 {
 			g.winAnimFrame++
 		}
@@ -532,7 +538,7 @@ Press Enter to return
 		if letters > len(msg) {
 			letters = len(msg)
 		}
-		text.Draw(screen, msg[:letters], basicfont.Face7x13, 40, 40, color.RGBA{255, 0, 0, 255})
+		text.Draw(screen, msg[:letters], chineseFontFace, 40, 40, color.RGBA{255, 0, 0, 255})
 		if g.gameOverAnimFrame < len(msg)*15 {
 			g.gameOverAnimFrame++
 		}
@@ -540,23 +546,23 @@ Press Enter to return
 	case StateNameInput:
 		screen.Fill(color.White)
 		prompt := "请输入你的名字 (A-Z, 0-9):"
-		text.Draw(screen, prompt, basicfont.Face7x13, 20, 30, color.Black)
-		text.Draw(screen, g.nameInput+"_", basicfont.Face7x13, 20, 50, color.RGBA{0, 0, 255, 255})
-		text.Draw(screen, "按Enter确认", basicfont.Face7x13, 20, 70, color.Gray{128})
+		text.Draw(screen, prompt, chineseFontFace, 20, 30, color.Black)
+		text.Draw(screen, g.nameInput+"_", chineseFontFace, 20, 50, color.RGBA{0, 0, 255, 255})
+		text.Draw(screen, "按Enter确认", chineseFontFace, 20, 70, color.Gray{128})
 		return
 	case StatePause:
 		screen.Fill(color.White)
-		text.Draw(screen, "暂停中", basicfont.Face7x13, 60, 40, color.RGBA{255, 0, 0, 255})
+		text.Draw(screen, "暂停中", chineseFontFace, 60, 40, color.RGBA{255, 0, 0, 255})
 		return
 	case StateExitConfirm:
 		screen.Fill(color.White)
-		text.Draw(screen, "确认退出？Y/N", basicfont.Face7x13, 40, 40, color.RGBA{255, 0, 0, 255})
+		text.Draw(screen, "确认退出？Y/N", chineseFontFace, 40, 40, color.RGBA{255, 0, 0, 255})
 		return
 	}
 
 	// 消息提示统一绘制
 	if g.messageTimer > 0 {
-		text.Draw(screen, g.message, basicfont.Face7x13, 40, 75, color.RGBA{0, 0, 0, 255})
+		text.Draw(screen, g.message, chineseFontFace, 40, 75, color.RGBA{0, 0, 0, 255})
 		g.messageTimer--
 	}
 }
@@ -636,7 +642,7 @@ func (g *Game) drawGameScene(screen *ebiten.Image) {
 func (g *Game) drawGameHUD(screen *ebiten.Image) {
 	// Draw HUD text (score)
 	scoreText := fmt.Sprintf("Score: %d", g.score)
-	text.Draw(screen, scoreText, basicfont.Face7x13, 5, 12, color.White)
+	text.Draw(screen, scoreText, chineseFontFace, 5, 12, color.White)
 
 	// Draw bombs
 	for i := 0; i < g.bombs; i++ {
@@ -690,6 +696,22 @@ func loadImage(path string) *ebiten.Image {
 	return ebiten.NewImageFromImage(img)
 }
 
+func LoadChineseFont() {
+	ft, err := opentype.Parse(zpixFontData)
+	if err != nil {
+		panic("无法解析中文字体: " + err.Error())
+	}
+	face, err := opentype.NewFace(ft, &opentype.FaceOptions{
+		Size:    14,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		panic("无法创建中文字体Face: " + err.Error())
+	}
+	chineseFontFace = face
+}
+
 func LoadAssets() {
 	submarineImage = loadImage("submarine.png")
 	titleImage = loadImage("title.png")
@@ -697,6 +719,7 @@ func LoadAssets() {
 	winImage = loadImage("win.png")
 	coinImage = loadImage("coin.png")
 	bombImage = loadImage("bomb.png")
+	LoadChineseFont()
 }
 
 // 排行榜读写
