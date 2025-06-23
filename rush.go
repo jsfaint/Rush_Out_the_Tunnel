@@ -47,6 +47,7 @@ const (
 	StateNameInput
 	StatePause
 	StateExitConfirm
+	StateHighScores
 )
 
 var (
@@ -118,6 +119,9 @@ type Game struct {
 	tips      []string
 	tipTimer  int
 	curTipIdx int
+
+	explosionFrame int
+	explosionDone  bool
 }
 
 func NewGame() *Game {
@@ -127,10 +131,11 @@ func NewGame() *Game {
 	g.state = StateTitle
 	// Buttons are initialized once, not on every reset
 	g.menuButtonRects = []image.Rectangle{
-		image.Rect(122, 8, 122+34, 8+9),   // New Game
-		image.Rect(122, 23, 122+34, 23+9), // Help
-		image.Rect(122, 38, 122+34, 38+9), // About
-		image.Rect(122, 53, 122+34, 53+9), // Exit
+		image.Rect(122, 8, 122+34, 8+9),   // 排行榜
+		image.Rect(122, 23, 122+34, 23+9), // New Game
+		image.Rect(122, 38, 122+34, 38+9), // Help
+		image.Rect(122, 53, 122+34, 53+9), // About
+		image.Rect(122, 68, 122+34, 68+9), // Exit
 	}
 	return g
 }
@@ -203,12 +208,12 @@ func (g *Game) Update() error {
 	switch g.state {
 	case StateTitle:
 		if inpututil.IsKeyJustPressed(ebiten.KeyDown) {
-			g.menuChoice = (g.menuChoice + 1) % 4
+			g.menuChoice = (g.menuChoice + 1) % 5
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
 			g.menuChoice--
 			if g.menuChoice < 0 {
-				g.menuChoice = 3
+				g.menuChoice = 4
 			}
 		}
 
@@ -263,10 +268,15 @@ func (g *Game) Update() error {
 			return nil
 		}
 		g.updateGame()
-	case StateHelp, StateAbout, StateWin, StateGameOver:
+		if g.state == StateGameOver {
+			g.explosionFrame = 0
+			g.explosionDone = false
+		}
+	case StateHelp, StateAbout, StateWin:
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 			g.state = StateTitle
 		}
+		return nil
 	case StateNameInput:
 		// 处理玩家名字输入
 		for _, key := range ebiten.InputChars() {
@@ -280,7 +290,8 @@ func (g *Game) Update() error {
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && len(g.nameInput) > 0 {
 			g.insertHighScore(g.nameInput, g.score)
 			saveHighScores()
-			g.state = StateTitle
+			g.state = StateHighScores
+			return nil
 		}
 		return nil
 	case StatePause:
@@ -297,20 +308,43 @@ func (g *Game) Update() error {
 			g.state = StateTitle
 		}
 		return nil
+	case StateHighScores:
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			g.state = StateTitle
+		}
+		return nil
+	case StateGameOver:
+		if !g.explosionDone {
+			g.explosionFrame++
+			if g.explosionFrame > 30 {
+				g.explosionDone = true
+			}
+			return nil
+		}
+		// 爆炸动画结束后才响应输入和显示GAME OVER
+		if g.isHighScore(g.score) {
+			g.nameInput = ""
+			g.state = StateNameInput
+		} else if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
+			g.state = StateTitle
+		}
+		return nil
 	}
 	return nil
 }
 
 func (g *Game) selectMenuItem() error {
 	switch g.menuChoice {
-	case 0: // New Game
+	case 0: // 排行榜
+		g.state = StateHighScores
+	case 1: // New Game
 		g.reset()
 		g.state = StateCountdown
-	case 1: // Help
+	case 2: // Help
 		g.state = StateHelp
-	case 2: // "With" on screen, means About
+	case 3: // About
 		g.state = StateAbout
-	case 3: // Exit
+	case 4: // Exit
 		return ebiten.Termination
 	}
 	return nil
@@ -533,14 +567,27 @@ Press Enter to return
 		return
 	case StateGameOver:
 		screen.Fill(color.White)
-		msg := "GAME OVER"
-		letters := g.gameOverAnimFrame/15 + 1
-		if letters > len(msg) {
-			letters = len(msg)
+		if !g.explosionDone {
+			cx := int(g.player.x) + 4
+			cy := int(g.player.y) + 2
+			for r := 2; r < g.explosionFrame*2; r += 4 {
+				col := color.RGBA{uint8(255 - r*4), uint8(128 + r*2), 0, 255}
+				for a := 0.0; a < 2*math.Pi; a += 0.2 {
+					x := cx + int(float64(r)*math.Cos(a))
+					y := cy + int(float64(r)*math.Sin(a))
+					if x >= 0 && x < screenWidth && y >= 0 && y < screenHeight {
+						screen.Set(x, y, col)
+					}
+				}
+			}
+			return
 		}
-		text.Draw(screen, msg[:letters], chineseFontFace, 40, 40, color.RGBA{255, 0, 0, 255})
-		if g.gameOverAnimFrame < len(msg)*15 {
-			g.gameOverAnimFrame++
+		// 爆炸动画结束后显示gameover.png
+		if gameoverImage != nil {
+			op := &ebiten.DrawImageOptions{}
+			imgW, imgH := gameoverImage.Size()
+			op.GeoM.Translate(float64((screenWidth-imgW)/2), float64((screenHeight-imgH)/2))
+			screen.DrawImage(gameoverImage, op)
 		}
 		return
 	case StateNameInput:
@@ -549,6 +596,24 @@ Press Enter to return
 		text.Draw(screen, prompt, chineseFontFace, 20, 30, color.Black)
 		text.Draw(screen, g.nameInput+"_", chineseFontFace, 20, 50, color.RGBA{0, 0, 255, 255})
 		text.Draw(screen, "按Enter确认", chineseFontFace, 20, 70, color.Gray{128})
+		// 显示当前高分榜
+		title := "高分榜 Top 5"
+		text.Draw(screen, title, chineseFontFace, 40, 90, color.RGBA{0, 0, 0, 255})
+		for i, hs := range highScores {
+			name := hs.Name
+			if name == "" {
+				name = "---"
+			}
+			colorName := color.RGBA{0, 0, 128, 255}
+			colorScore := color.RGBA{128, 0, 0, 255}
+			if g.score == hs.Score && g.nameInput != "" && name == g.nameInput {
+				colorName = color.RGBA{255, 0, 0, 255}
+				colorScore = color.RGBA{255, 0, 0, 255}
+			}
+			scoreStr := fmt.Sprintf("%d", hs.Score)
+			text.Draw(screen, fmt.Sprintf("%d. %s", i+1, name), chineseFontFace, 30, 115+20*i, colorName)
+			text.Draw(screen, scoreStr, chineseFontFace, 140, 115+20*i, colorScore)
+		}
 		return
 	case StatePause:
 		screen.Fill(color.White)
@@ -557,6 +622,21 @@ Press Enter to return
 	case StateExitConfirm:
 		screen.Fill(color.White)
 		text.Draw(screen, "确认退出？Y/N", chineseFontFace, 40, 40, color.RGBA{255, 0, 0, 255})
+		return
+	case StateHighScores:
+		screen.Fill(color.White)
+		title := "高分榜 Top 5"
+		text.Draw(screen, title, chineseFontFace, 40, 20, color.RGBA{0, 0, 0, 255})
+		for i, hs := range highScores {
+			name := hs.Name
+			if name == "" {
+				name = "---"
+			}
+			scoreStr := fmt.Sprintf("%d", hs.Score)
+			text.Draw(screen, fmt.Sprintf("%d. %s", i+1, name), chineseFontFace, 30, 45+25*i, color.RGBA{0, 0, 128, 255})
+			text.Draw(screen, scoreStr, chineseFontFace, 140, 45+25*i, color.RGBA{128, 0, 0, 255})
+		}
+		text.Draw(screen, "按Enter返回菜单", chineseFontFace, 30, 180, color.Gray{128})
 		return
 	}
 
