@@ -601,7 +601,8 @@ Press Enter to return
 		// 爆炸动画结束后显示gameover.png
 		if gameoverImage != nil {
 			op := &ebiten.DrawImageOptions{}
-			imgW, imgH := gameoverImage.Size()
+			imgW := gameoverImage.Bounds().Dx()
+			imgH := gameoverImage.Bounds().Dy()
 			op.GeoM.Translate(float64((screenWidth-imgW)/2), float64((screenHeight-imgH)/2))
 			screen.DrawImage(gameoverImage, op)
 		}
