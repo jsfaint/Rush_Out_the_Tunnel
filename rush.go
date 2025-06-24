@@ -549,91 +549,26 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case StateGame:
 		g.drawGame(screen)
 	case StateHelp:
-		screen.Fill(color.White)
-		helpText := `Help about the game
-Hold [UP] to go up
-Release to go down
-[Z] Pause the game
-[X] Launch the bomb
-[Esc] Exit game
-Coin Increase score
-(:  Have fun!  :)
-Press Enter to return
-`
-		drawText(screen, helpText, 5, 0, color.Black)
-
+		g.drawHelp(screen)
 	case StateAbout:
-		screen.Fill(color.White)
-		aboutText := `Rush out the Tunnel
-For WQX Lava 12K
-Version: 1.0
-Design : Anson
-Program: Jay
-Created: 6/15/2005
-Welcome to: www.emsky.net
-Press Enter to return
-`
-		drawText(screen, aboutText, 5, 0, color.Black)
-
+		g.drawAbout(screen)
 	case StateWin:
-		screen.Fill(color.White)
-		msg := "YOU WIN"
-		letters := g.winAnimFrame/15 + 1
-		if letters > len(msg) {
-			letters = len(msg)
-		}
-		drawText(screen, msg[:letters], 50, 40, color.RGBA{0, 128, 0, 255})
-		if g.winAnimFrame < len(msg)*15 {
-			g.winAnimFrame++
-		}
+		g.drawWin(screen)
 		return
 	case StateGameOver:
-		screen.Fill(color.White)
-		if !g.explosionDone {
-			cx := int(g.player.x) + 4
-			cy := int(g.player.y) + 2
-			for r := 2; r < g.explosionFrame*2; r += 4 {
-				col := color.RGBA{uint8(255 - r*4), uint8(128 + r*2), 0, 255}
-				for a := 0.0; a < 2*math.Pi; a += 0.2 {
-					x := cx + int(float64(r)*math.Cos(a))
-					y := cy + int(float64(r)*math.Sin(a))
-					if x >= 0 && x < screenWidth && y >= 0 && y < screenHeight {
-						screen.Set(x, y, col)
-					}
-				}
-			}
-			return
-		}
-		// 爆炸动画结束后显示gameover.png
-		if gameoverImage != nil {
-			op := &ebiten.DrawImageOptions{}
-			imgW := gameoverImage.Bounds().Dx()
-			imgH := gameoverImage.Bounds().Dy()
-			op.GeoM.Translate(float64((screenWidth-imgW)/2), float64((screenHeight-imgH)/2))
-			screen.DrawImage(gameoverImage, op)
-		}
+		g.drawGameOver(screen)
 		return
 	case StateNameInput:
-		screen.Fill(color.White)
-		prompt := "请输入你的名字 (A-Z, 0-9):"
-		drawText(screen, prompt, 20, 30, color.Black)
-		drawText(screen, g.nameInput+"_", 20, 50, color.RGBA{0, 0, 255, 255})
-		drawText(screen, "按Enter确认", 20, 70, color.Gray{128})
-
-		g.drawHighScores(screen)
-
+		g.drawNameInput(screen)
 		return
 	case StatePause:
-		screen.Fill(color.White)
-		drawText(screen, "暂停中", 60, 40, color.RGBA{255, 0, 0, 255})
+		g.drawPause(screen)
 		return
 	case StateExitConfirm:
-		screen.Fill(color.White)
-		drawText(screen, "确认退出？Y/N", 40, 40, color.RGBA{255, 0, 0, 255})
+		g.drawExitConfirm(screen)
 		return
 	case StateHighScores, StateHighScoresThenGame:
 		g.drawHighScores(screen)
-
 		return
 	}
 
@@ -884,4 +819,99 @@ func (g *Game) insertHighScore(name string, score int) {
 
 func (g *Game) isHighScore(score int) bool {
 	return score > highScores[len(highScores)-1].Score
+}
+
+// DrawHelp 绘制帮助界面
+func (g *Game) drawHelp(screen *ebiten.Image) {
+	screen.Fill(color.White)
+	helpText := `Help about the game
+Hold [UP] to go up
+Release to go down
+[Z] Pause the game
+[X] Launch the bomb
+[Esc] Exit game
+Coin Increase score
+(:  Have fun!  :)
+Press Enter to return
+`
+	drawText(screen, helpText, 5, 0, color.Black)
+}
+
+// DrawAbout 绘制关于界面
+func (g *Game) drawAbout(screen *ebiten.Image) {
+	screen.Fill(color.White)
+	aboutText := `Rush out the Tunnel
+For WQX Lava 12K
+Version: 1.0
+Design : Anson
+Program: Jay
+Created: 6/15/2005
+Welcome to: www.emsky.net
+Press Enter to return
+`
+	drawText(screen, aboutText, 5, 0, color.Black)
+}
+
+// DrawWin 绘制胜利界面动画
+func (g *Game) drawWin(screen *ebiten.Image) {
+	screen.Fill(color.White)
+	msg := "YOU WIN"
+	letters := g.winAnimFrame/15 + 1
+	if letters > len(msg) {
+		letters = len(msg)
+	}
+	drawText(screen, msg[:letters], 50, 40, color.RGBA{0, 128, 0, 255})
+	if g.winAnimFrame < len(msg)*15 {
+		g.winAnimFrame++
+	}
+}
+
+// DrawGameOver 绘制游戏结束界面和爆炸动画
+func (g *Game) drawGameOver(screen *ebiten.Image) {
+	screen.Fill(color.White)
+	if !g.explosionDone {
+		cx := int(g.player.x) + 4
+		cy := int(g.player.y) + 2
+		for r := 2; r < g.explosionFrame*2; r += 4 {
+			col := color.RGBA{uint8(255 - r*4), uint8(128 + r*2), 0, 255}
+			for a := 0.0; a < 2*math.Pi; a += 0.2 {
+				x := cx + int(float64(r)*math.Cos(a))
+				y := cy + int(float64(r)*math.Sin(a))
+				if x >= 0 && x < screenWidth && y >= 0 && y < screenHeight {
+					screen.Set(x, y, col)
+				}
+			}
+		}
+		return
+	}
+	// 爆炸动画结束后显示gameover.png
+	if gameoverImage != nil {
+		op := &ebiten.DrawImageOptions{}
+		imgW := gameoverImage.Bounds().Dx()
+		imgH := gameoverImage.Bounds().Dy()
+		op.GeoM.Translate(float64((screenWidth-imgW)/2), float64((screenHeight-imgH)/2))
+		screen.DrawImage(gameoverImage, op)
+	}
+}
+
+// DrawNameInput 绘制名字输入界面
+func (g *Game) drawNameInput(screen *ebiten.Image) {
+	screen.Fill(color.White)
+	prompt := "请输入你的名字 (A-Z, 0-9):"
+	drawText(screen, prompt, 20, 30, color.Black)
+	drawText(screen, g.nameInput+"_", 20, 50, color.RGBA{0, 0, 255, 255})
+	drawText(screen, "按Enter确认", 20, 70, color.Gray{128})
+	g.drawHighScores(screen)
+}
+
+// DrawPause 绘制暂停界面
+func (g *Game) drawPause(screen *ebiten.Image) {
+	screen.Fill(color.White)
+	drawText(screen, "暂停中", 60, 40, color.RGBA{255, 0, 0, 255})
+}
+
+// DrawExitConfirm 绘制退出确认界面
+func (g *Game) drawExitConfirm(screen *ebiten.Image) {
+	screen.Fill(color.White)
+	drawText(screen, "确认退出？Y/N", 40, 40, color.RGBA{255, 0, 0, 255})
 }
