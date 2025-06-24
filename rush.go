@@ -24,7 +24,7 @@ import (
 //go:embed assets/images
 var assetsFS embed.FS
 
-//go:embed assets/fonts/WenQuanWeiMiHei.ttf
+//go:embed assets/fonts/font.ttf
 var fontData []byte
 
 var chineseFontFace text.Face
