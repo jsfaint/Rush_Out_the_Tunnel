@@ -610,24 +610,9 @@ Press Enter to return
 		drawText(screen, prompt, 20, 30, color.Black)
 		drawText(screen, g.nameInput+"_", 20, 50, color.RGBA{0, 0, 255, 255})
 		drawText(screen, "按Enter确认", 20, 70, color.Gray{128})
-		// 显示当前高分榜
-		title := "高分榜 Top 5"
-		drawText(screen, title, 40, 90, color.RGBA{0, 0, 0, 255})
-		for i, hs := range highScores {
-			name := hs.Name
-			if name == "" {
-				name = "---"
-			}
-			colorName := color.RGBA{0, 0, 128, 255}
-			colorScore := color.RGBA{128, 0, 0, 255}
-			if g.score == hs.Score && g.nameInput != "" && name == g.nameInput {
-				colorName = color.RGBA{255, 0, 0, 255}
-				colorScore = color.RGBA{255, 0, 0, 255}
-			}
-			scoreStr := fmt.Sprintf("%d", hs.Score)
-			drawText(screen, fmt.Sprintf("%d. %s", i+1, name), 30, 115+20*i, colorName)
-			drawText(screen, scoreStr, 140, 115+20*i, colorScore)
-		}
+
+		g.drawHighScores(screen)
+
 		return
 	case StatePause:
 		screen.Fill(color.White)
@@ -638,27 +623,42 @@ Press Enter to return
 		drawText(screen, "确认退出？Y/N", 40, 40, color.RGBA{255, 0, 0, 255})
 		return
 	case StateHighScores, StateHighScoresThenGame:
-		screen.Fill(color.White)
-		title := "高分榜 Top 5"
-		drawText(screen, title, 40, 20, color.RGBA{0, 0, 0, 255})
-		for i, hs := range highScores {
-			name := hs.Name
-			if name == "" {
-				name = "---"
-			}
-			scoreStr := fmt.Sprintf("%d", hs.Score)
-			drawText(screen, fmt.Sprintf("%d. %s", i+1, name), 30, 45+25*i, color.RGBA{0, 0, 128, 255})
-			drawText(screen, scoreStr, 140, 45+25*i, color.RGBA{128, 0, 0, 255})
-		}
-		drawText(screen, "按Enter返回/继续", 30, 180, color.Gray{128})
+		g.drawHighScores(screen)
+
 		return
 	}
 
 	// 消息提示统一绘制
 	if g.messageTimer > 0 {
-		drawText(screen, g.message, 40, 75, color.RGBA{0, 0, 0, 255})
+		drawText(screen, g.message, 40, 55, color.RGBA{0, 0, 0, 255})
 		g.messageTimer--
 	}
+}
+
+func (g *Game) drawHighScores(screen *ebiten.Image) {
+	screen.Fill(color.White)
+
+	// 显示当前高分榜
+	title := "高分榜 Top 5"
+	drawText(screen, title, 50, 2, color.RGBA{0, 0, 0, 255})
+
+	for i, hs := range highScores {
+		name := hs.Name
+		if name == "" {
+			name = "---"
+		}
+		colorName := color.RGBA{0, 0, 128, 255}
+		colorScore := color.RGBA{128, 0, 0, 255}
+		if g.score == hs.Score && g.nameInput != "" && name == g.nameInput {
+			colorName = color.RGBA{255, 0, 0, 255}
+			colorScore = color.RGBA{255, 0, 0, 255}
+		}
+		scoreStr := fmt.Sprintf("%d", hs.Score)
+		drawText(screen, fmt.Sprintf("%d. %s", i+1, name), 50, 12+11*i, colorName)
+		drawText(screen, scoreStr, 110, 12+11*i, colorScore)
+	}
+
+	drawText(screen, "按Enter返回/继续", 45, 68, color.Gray{128})
 }
 
 func (g *Game) drawTitle(screen *ebiten.Image) {
@@ -736,7 +736,7 @@ func (g *Game) drawGameScene(screen *ebiten.Image) {
 func (g *Game) drawGameHUD(screen *ebiten.Image) {
 	// Draw HUD text (score)
 	scoreText := fmt.Sprintf("Score: %d", g.score)
-	drawText(screen, scoreText, 5, 12, color.White)
+	drawText(screen, scoreText, 5, 5, color.White)
 
 	// Draw bombs
 	for i := 0; i < g.bombs; i++ {
@@ -796,7 +796,7 @@ func LoadChineseFont() {
 		panic("无法解析中文字体: " + err.Error())
 	}
 	face, err := opentype.NewFace(ft, &opentype.FaceOptions{
-		Size:    8,
+		Size:    9,
 		DPI:     72,
 		Hinting: font.HintingFull,
 	})
@@ -813,6 +813,7 @@ func LoadAssets() {
 	winImage = loadImage("win.png")
 	coinImage = loadImage("coin.png")
 	bombImage = loadImage("bomb.png")
+
 	LoadChineseFont()
 }
 
