@@ -1,0 +1,6 @@
+.bmad-core/
+*.exe
+*.aar
+*.jar
+*.apk
+*.wasm
