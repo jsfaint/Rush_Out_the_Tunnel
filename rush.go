@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -31,6 +32,8 @@ var chineseFontFace text.Face
 const (
 	screenWidth  = 160
 	screenHeight = 80
+
+	fontSize = 9
 )
 
 // Game State
@@ -325,7 +328,10 @@ func (g *Game) Update() error {
 		if g.isHighScore(g.score) {
 			g.nameInput = ""
 			g.state = StateNameInput
-		} else if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
+		}
+
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+			len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 			g.state = StateTitle
 		}
 		return nil
@@ -525,10 +531,13 @@ func (g *Game) updateGame() {
 
 // drawText 辅助函数，简化 text/v2 的文本绘制
 func drawText(screen *ebiten.Image, str string, x, y int, clr color.Color) {
-	dopt := &text.DrawOptions{}
-	dopt.GeoM.Translate(float64(x), float64(y))
-	dopt.ColorScale.ScaleWithColor(clr)
-	text.Draw(screen, str, chineseFontFace, dopt)
+	lines := strings.Split(str, "\n")
+	for i, line := range lines {
+		dopt := &text.DrawOptions{}
+		dopt.GeoM.Translate(float64(x), float64(y+i*(fontSize+1)))
+		dopt.ColorScale.ScaleWithColor(clr)
+		text.Draw(screen, line, chineseFontFace, dopt)
+	}
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -551,7 +560,7 @@ Coin Increase score
 (:  Have fun!  :)
 Press Enter to return
 `
-		drawText(screen, helpText, 5, 15, color.Black)
+		drawText(screen, helpText, 5, 0, color.Black)
 
 	case StateAbout:
 		screen.Fill(color.White)
@@ -564,7 +573,7 @@ Created: 6/15/2005
 Welcome to: www.emsky.net
 Press Enter to return
 `
-		drawText(screen, aboutText, 5, 15, color.Black)
+		drawText(screen, aboutText, 5, 0, color.Black)
 
 	case StateWin:
 		screen.Fill(color.White)
@@ -796,7 +805,7 @@ func LoadChineseFont() {
 		panic("无法解析中文字体: " + err.Error())
 	}
 	face, err := opentype.NewFace(ft, &opentype.FaceOptions{
-		Size:    9,
+		Size:    fontSize,
 		DPI:     72,
 		Hinting: font.HintingFull,
 	})
