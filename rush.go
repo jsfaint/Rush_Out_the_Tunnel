@@ -24,8 +24,8 @@ import (
 //go:embed assets/images
 var assetsFS embed.FS
 
-//go:embed assets/fonts/zpix.ttf
-var zpixFontData []byte
+//go:embed assets/fonts/WenQuanWeiMiHei.ttf
+var fontData []byte
 
 var chineseFontFace text.Face
 
@@ -771,7 +771,7 @@ func loadImage(path string) *ebiten.Image {
 }
 
 func LoadChineseFont() {
-	ft, err := opentype.Parse(zpixFontData)
+	ft, err := opentype.Parse(fontData)
 	if err != nil {
 		panic("无法解析中文字体: " + err.Error())
 	}
