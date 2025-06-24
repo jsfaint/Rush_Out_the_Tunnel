@@ -351,7 +351,9 @@ func (g *Game) updateWin() error {
 
 // updateNameInput 处理玩家名字输入
 func (g *Game) updateNameInput() error {
-	for _, key := range ebiten.InputChars() {
+	var chars []rune
+	chars = ebiten.AppendInputChars(chars)
+	for _, key := range chars {
 		if len(g.nameInput) < 8 && ((key >= 'A' && key <= 'Z') || (key >= 'a' && key <= 'z') || (key >= '0' && key <= '9')) {
 			g.nameInput += string(key)
 		}
