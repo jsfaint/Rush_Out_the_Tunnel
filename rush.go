@@ -218,36 +218,6 @@ func (g *Game) spawnTunnel(x float64) {
 	}
 }
 
-func (g *Game) Update() error {
-	switch g.state {
-	case StateTitle:
-		return g.updateTitle()
-	case StateCountdown:
-		return g.updateCountdown()
-	case StateGame:
-		return g.updateGame()
-	case StateHelp:
-		return g.updateHelp()
-	case StateAbout:
-		return g.updateAbout()
-	case StateWin:
-		return g.updateWin()
-	case StateNameInput:
-		return g.updateNameInput()
-	case StatePause:
-		return g.updatePause()
-	case StateExitConfirm:
-		return g.updateExitConfirm()
-	case StateHighScores:
-		return g.updateHighScores()
-	case StateGameOver:
-		return g.updateGameOver()
-	case StateHighScoresThenGame:
-		return g.updateHighScoresThenGame()
-	}
-	return nil
-}
-
 // updateTitle 处理标题界面输入与菜单选择
 func (g *Game) updateTitle() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyDown) {
@@ -392,7 +362,8 @@ func (g *Game) updateExitConfirm() error {
 
 // updateHighScores 处理高分榜界面输入
 func (g *Game) updateHighScores() error {
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 		g.state = StateTitle
 	}
 	return nil
@@ -410,8 +381,7 @@ func (g *Game) updateGameOver() error {
 	if g.isHighScore(g.score) {
 		g.nameInput = ""
 		g.state = StateNameInput
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
 		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 		g.state = StateTitle
 	}
@@ -420,7 +390,8 @@ func (g *Game) updateGameOver() error {
 
 // updateHighScoresThenGame 处理高分榜后自动进入游戏
 func (g *Game) updateHighScoresThenGame() error {
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 		g.reset()
 		g.state = StateCountdown
 		return nil
@@ -571,6 +542,36 @@ func (g *Game) selectMenuItem() error {
 		g.state = StateAbout
 	case 3: // Exit
 		return ebiten.Termination
+	}
+	return nil
+}
+
+func (g *Game) Update() error {
+	switch g.state {
+	case StateTitle:
+		return g.updateTitle()
+	case StateCountdown:
+		return g.updateCountdown()
+	case StateGame:
+		return g.updateGame()
+	case StateHelp:
+		return g.updateHelp()
+	case StateAbout:
+		return g.updateAbout()
+	case StateWin:
+		return g.updateWin()
+	case StateNameInput:
+		return g.updateNameInput()
+	case StatePause:
+		return g.updatePause()
+	case StateExitConfirm:
+		return g.updateExitConfirm()
+	case StateHighScores:
+		return g.updateHighScores()
+	case StateGameOver:
+		return g.updateGameOver()
+	case StateHighScoresThenGame:
+		return g.updateHighScoresThenGame()
 	}
 	return nil
 }
@@ -933,10 +934,9 @@ func (g *Game) drawGameOver(screen *ebiten.Image) {
 func (g *Game) drawNameInput(screen *ebiten.Image) {
 	screen.Fill(color.White)
 	prompt := "请输入你的名字 (A-Z, 0-9):"
-	drawText(screen, prompt, 20, 30, color.Black)
-	drawText(screen, g.nameInput+"_", 20, 50, color.RGBA{0, 0, 255, 255})
-	drawText(screen, "按Enter确认", 20, 70, color.Gray{128})
-	g.drawHighScores(screen)
+	drawText(screen, prompt, 20, 20, color.Black)
+	drawText(screen, g.nameInput+"_", 20, 30, color.RGBA{0, 0, 255, 255})
+	drawText(screen, "按Enter确认", 20, 50, color.Gray{128})
 }
 
 // DrawPause 绘制暂停界面
