@@ -143,6 +143,17 @@ func NewGame() *Game {
 	return g
 }
 
+// drawText 辅助函数，简化 text/v2 的文本绘制
+func drawText(screen *ebiten.Image, str string, x, y int, clr color.Color) {
+	lines := strings.Split(str, "\n")
+	for i, line := range lines {
+		dopt := &text.DrawOptions{}
+		dopt.GeoM.Translate(float64(x), float64(y+i*(fontSize+1)))
+		dopt.ColorScale.ScaleWithColor(clr)
+		text.Draw(screen, line, chineseFontFace, dopt)
+	}
+}
+
 func (g *Game) reset() {
 	g.player = &Player{
 		x:  screenWidth / 4,
@@ -210,182 +221,225 @@ func (g *Game) spawnTunnel(x float64) {
 func (g *Game) Update() error {
 	switch g.state {
 	case StateTitle:
-		if inpututil.IsKeyJustPressed(ebiten.KeyDown) {
-			g.menuChoice = (g.menuChoice + 1) % 5
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
-			g.menuChoice--
-			if g.menuChoice < 0 {
-				g.menuChoice = 4
-			}
-		}
-
-		// Check for mouse click on menu items
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-			x, y := ebiten.CursorPosition()
-			for i, r := range g.menuButtonRects {
-				if (image.Point{x, y}).In(r) {
-					g.menuChoice = i
-					// Immediately execute the choice
-					if err := g.selectMenuItem(); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
-		// Check for touch click on menu items
-		for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
-			x, y := ebiten.TouchPosition(id)
-			for i, r := range g.menuButtonRects {
-				if (image.Point{x, y}).In(r) {
-					g.menuChoice = i
-					// Immediately execute the choice
-					if err := g.selectMenuItem(); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
-		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-			if err := g.selectMenuItem(); err != nil {
-				return err
-			}
-		}
-
-		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-			g.state = StateExitConfirm
-			return nil
-		}
+		return g.updateTitle()
 	case StateCountdown:
-		g.updateCountdown()
+		return g.updateCountdown()
 	case StateGame:
-		if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
-			g.state = StatePause
-			g.showMessage("暂停中", 60)
-			return nil
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-			g.state = StateExitConfirm
-			return nil
-		}
-		g.updateGame()
-		if g.state == StateGameOver {
-			g.explosionFrame = 0
-			g.explosionDone = false
-		}
-	case StateHelp, StateAbout, StateWin:
-		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
-			g.state = StateTitle
-		}
-		return nil
+		return g.updateGame()
+	case StateHelp:
+		return g.updateHelp()
+	case StateAbout:
+		return g.updateAbout()
+	case StateWin:
+		return g.updateWin()
 	case StateNameInput:
-		// 处理玩家名字输入
-		for _, key := range ebiten.InputChars() {
-			if len(g.nameInput) < 8 && ((key >= 'A' && key <= 'Z') || (key >= 'a' && key <= 'z') || (key >= '0' && key <= '9')) {
-				g.nameInput += string(key)
-			}
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(g.nameInput) > 0 {
-			g.nameInput = g.nameInput[:len(g.nameInput)-1]
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && len(g.nameInput) > 0 {
-			g.insertHighScore(g.nameInput, g.score)
-			saveHighScores()
-			g.state = StateHighScores
-			return nil
-		}
-		return nil
+		return g.updateNameInput()
 	case StatePause:
-		if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
-			g.state = StateGame
-			g.showMessage("继续游戏", 60)
-		}
-		return nil
+		return g.updatePause()
 	case StateExitConfirm:
-		if inpututil.IsKeyJustPressed(ebiten.KeyY) {
-			return ebiten.Termination
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyN) || inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-			g.state = StateTitle
-		}
-		return nil
+		return g.updateExitConfirm()
 	case StateHighScores:
-		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-			g.state = StateTitle
-		}
-		return nil
+		return g.updateHighScores()
 	case StateGameOver:
-		if !g.explosionDone {
-			g.explosionFrame++
-			if g.explosionFrame > 30 {
-				g.explosionDone = true
-			}
-			return nil
-		}
-		// 爆炸动画结束后才响应输入和显示GAME OVER
-		if g.isHighScore(g.score) {
-			g.nameInput = ""
-			g.state = StateNameInput
-		}
-
-		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
-			len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
-			g.state = StateTitle
-		}
-		return nil
+		return g.updateGameOver()
 	case StateHighScoresThenGame:
-		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-			g.reset()
-			g.state = StateCountdown
-			return nil
+		return g.updateHighScoresThenGame()
+	}
+	return nil
+}
+
+// updateTitle 处理标题界面输入与菜单选择
+func (g *Game) updateTitle() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyDown) {
+		g.menuChoice = (g.menuChoice + 1) % 5
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
+		g.menuChoice--
+		if g.menuChoice < 0 {
+			g.menuChoice = 4
 		}
+	}
+	// Check for mouse click on menu items
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		x, y := ebiten.CursorPosition()
+		for i, r := range g.menuButtonRects {
+			if (image.Point{x, y}).In(r) {
+				g.menuChoice = i
+				if err := g.selectMenuItem(); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	// Check for touch click on menu items
+	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
+		x, y := ebiten.TouchPosition(id)
+		for i, r := range g.menuButtonRects {
+			if (image.Point{x, y}).In(r) {
+				g.menuChoice = i
+				if err := g.selectMenuItem(); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		if err := g.selectMenuItem(); err != nil {
+			return err
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		g.state = StateExitConfirm
 		return nil
 	}
 	return nil
 }
 
-func (g *Game) selectMenuItem() error {
-	switch g.menuChoice {
-	case 0: // 排行榜
-		g.reset()
-		g.state = StateHighScoresThenGame
-	case 1: // Help
-		g.state = StateHelp
-	case 2: // About
-		g.state = StateAbout
-	case 3: // Exit
-		return ebiten.Termination
-	}
-	return nil
-}
-
-func (g *Game) updateCountdown() {
+// updateCountdown 处理倒计时逻辑
+func (g *Game) updateCountdown() error {
 	if g.countdownTimer > 0 {
 		g.countdownTimer--
 	}
 	if g.countdownTimer <= 0 {
 		g.state = StateGame
 	}
+	return nil
 }
 
-func (g *Game) updateGame() {
+// updateGame 处理游戏主循环逻辑
+func (g *Game) updateGame() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
+		g.state = StatePause
+		g.showMessage("暂停中", 60)
+		return nil
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		g.state = StateExitConfirm
+		return nil
+	}
+	g.updateGameLogic()
+	if g.state == StateGameOver {
+		g.explosionFrame = 0
+		g.explosionDone = false
+	}
+	return nil
+}
+
+// updateHelp 处理帮助界面输入
+func (g *Game) updateHelp() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
+		g.state = StateTitle
+	}
+	return nil
+}
+
+// updateAbout 处理关于界面输入
+func (g *Game) updateAbout() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
+		g.state = StateTitle
+	}
+	return nil
+}
+
+// updateWin 处理胜利界面输入
+func (g *Game) updateWin() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
+		g.state = StateTitle
+	}
+	return nil
+}
+
+// updateNameInput 处理玩家名字输入
+func (g *Game) updateNameInput() error {
+	for _, key := range ebiten.InputChars() {
+		if len(g.nameInput) < 8 && ((key >= 'A' && key <= 'Z') || (key >= 'a' && key <= 'z') || (key >= '0' && key <= '9')) {
+			g.nameInput += string(key)
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(g.nameInput) > 0 {
+		g.nameInput = g.nameInput[:len(g.nameInput)-1]
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && len(g.nameInput) > 0 {
+		g.insertHighScore(g.nameInput, g.score)
+		saveHighScores()
+		g.state = StateHighScores
+		return nil
+	}
+	return nil
+}
+
+// updatePause 处理暂停界面输入
+func (g *Game) updatePause() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
+		g.state = StateGame
+		g.showMessage("继续游戏", 60)
+	}
+	return nil
+}
+
+// updateExitConfirm 处理退出确认界面输入
+func (g *Game) updateExitConfirm() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyY) {
+		return ebiten.Termination
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyN) || inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		g.state = StateTitle
+	}
+	return nil
+}
+
+// updateHighScores 处理高分榜界面输入
+func (g *Game) updateHighScores() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		g.state = StateTitle
+	}
+	return nil
+}
+
+// updateGameOver 处理游戏结束界面输入和爆炸动画
+func (g *Game) updateGameOver() error {
+	if !g.explosionDone {
+		g.explosionFrame++
+		if g.explosionFrame > 30 {
+			g.explosionDone = true
+		}
+		return nil
+	}
+	if g.isHighScore(g.score) {
+		g.nameInput = ""
+		g.state = StateNameInput
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
+		g.state = StateTitle
+	}
+	return nil
+}
+
+// updateHighScoresThenGame 处理高分榜后自动进入游戏
+func (g *Game) updateHighScoresThenGame() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		g.reset()
+		g.state = StateCountdown
+		return nil
+	}
+	return nil
+}
+
+// updateGameLogic 保留原有 updateGame 的主逻辑部分
+func (g *Game) updateGameLogic() {
 	if g.isBombing {
 		g.bombTimer--
 		if g.bombTimer <= 0 {
 			g.isBombing = false
-			// Clear all obstacles after the flash
 			g.tunnels = []*Tunnel{}
 			g.collectibles = []*Collectible{}
-			// Repopulate the screen to continue
 			for x := 0.0; x < screenWidth+10; x += 10 {
 				g.spawnTunnel(x)
 			}
 		}
-		return // Pause the game during the bomb effect
+		return
 	}
-
 	isPressingBomb := inpututil.IsKeyJustPressed(ebiten.KeyX)
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
@@ -393,7 +447,6 @@ func (g *Game) updateGame() {
 			isPressingBomb = true
 		}
 	}
-	// Check for touch input on the bomb button
 	if !isPressingBomb {
 		for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
 			x, y := ebiten.TouchPosition(id)
@@ -403,33 +456,26 @@ func (g *Game) updateGame() {
 			}
 		}
 	}
-
 	if isPressingBomb && g.bombs > 0 && !g.isBombing {
 		g.bombs--
 		g.isBombing = true
-		g.bombTimer = 15 // Flash for 1/4 second at 60fps
+		g.bombTimer = 15
 		g.showMessage("炸弹！", 30)
 		return
 	}
 	if isPressingBomb && g.bombs == 0 {
 		g.showMessage("炸弹已用尽", 60)
 	}
-
 	g.distance++
-
-	// Score increases with distance
 	if g.distance%40 == 0 {
 		g.score++
 	}
-
-	// Win condition
 	if g.distance >= 4000 {
 		g.winAnimFrame = 0
 		g.showMessage("胜利！", 60)
 		g.state = StateWin
 		return
 	}
-
 	if g.distance%100 == 0 {
 		g.slope = rand.Intn(3)
 	}
@@ -442,17 +488,13 @@ func (g *Game) updateGame() {
 	if g.slope == 2 && g.tunnelTopY < screenHeight-g.tunnelHeight-10 {
 		g.tunnelTopY++
 	}
-
-	// Unify input
 	isPressingUp := ebiten.IsKeyPressed(ebiten.KeyUp)
-	// Check for mouse press on the up button
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
 		if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
 			isPressingUp = true
 		}
 	}
-	// Check for touch press on the up button
 	if !isPressingUp {
 		for _, id := range ebiten.TouchIDs() {
 			x, y := ebiten.TouchPosition(id)
@@ -462,7 +504,6 @@ func (g *Game) updateGame() {
 			}
 		}
 	}
-
 	if isPressingUp {
 		g.player.vy -= 0.2
 	} else {
@@ -475,11 +516,9 @@ func (g *Game) updateGame() {
 	if g.player.vy < -1.0 {
 		g.player.vy = -1.0
 	}
-
 	for _, t := range g.tunnels {
 		t.x -= 1.0
 	}
-
 	if len(g.tunnels) > 0 {
 		firstTunnel := g.tunnels[0]
 		if firstTunnel.x+firstTunnel.width < 0 {
@@ -488,40 +527,30 @@ func (g *Game) updateGame() {
 			g.spawnTunnel(lastTunnel.x + lastTunnel.width)
 		}
 	}
-
-	// Move collectibles
 	for _, c := range g.collectibles {
-		c.x -= 1.0 // Scroll speed
+		c.x -= 1.0
 	}
-
-	// Collision detection
 	playerRect := image.Rect(int(g.player.x), int(g.player.y), int(g.player.x)+8, int(g.player.y)+4)
-
-	// Tunnel collision
 	for _, t := range g.tunnels {
 		topRect := image.Rect(int(t.x), 0, int(t.x+t.width), int(t.topY))
 		bottomRect := image.Rect(int(t.x), int(t.topY+t.height), int(t.x+t.width), screenHeight)
 		if playerRect.Overlaps(topRect) || playerRect.Overlaps(bottomRect) {
 			g.state = StateGameOver
-			return // Immediately exit update loop after collision
+			return
 		}
 	}
-
-	// Coin collision
 	remainingCollectibles := g.collectibles[:0]
 	for _, c := range g.collectibles {
 		collectibleRect := image.Rect(int(c.x), int(c.y), int(c.x)+c.w, int(c.y)+c.h)
 		if playerRect.Overlaps(collectibleRect) {
-			g.score += 5 // You got a coin!
+			g.score += 5
 			g.showMessage("获得金币！", 30)
 			continue
-		} else if c.x+float64(c.w) > 0 { // Keep it if it's still on screen
+		} else if c.x+float64(c.w) > 0 {
 			remainingCollectibles = append(remainingCollectibles, c)
 		}
 	}
 	g.collectibles = remainingCollectibles
-
-	// 定时显示提示语
 	g.tipTimer++
 	if g.tipTimer%200 == 0 {
 		g.curTipIdx = rand.Intn(len(g.tips))
@@ -529,15 +558,19 @@ func (g *Game) updateGame() {
 	}
 }
 
-// drawText 辅助函数，简化 text/v2 的文本绘制
-func drawText(screen *ebiten.Image, str string, x, y int, clr color.Color) {
-	lines := strings.Split(str, "\n")
-	for i, line := range lines {
-		dopt := &text.DrawOptions{}
-		dopt.GeoM.Translate(float64(x), float64(y+i*(fontSize+1)))
-		dopt.ColorScale.ScaleWithColor(clr)
-		text.Draw(screen, line, chineseFontFace, dopt)
+func (g *Game) selectMenuItem() error {
+	switch g.menuChoice {
+	case 0: // New
+		g.reset()
+		g.state = StateHighScoresThenGame
+	case 1: // Help
+		g.state = StateHelp
+	case 2: // About
+		g.state = StateAbout
+	case 3: // Exit
+		return ebiten.Termination
 	}
+	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
