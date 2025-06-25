@@ -899,8 +899,7 @@ func (g *Game) drawCountdown(screen *ebiten.Image) {
 		textImgHeight := 16
 		textImg := ebiten.NewImage(textImgWidth, textImgHeight)
 
-		// Use DebugPrint to draw the text onto the temporary image.
-		ebitenutil.DebugPrint(textImg, textStr)
+		drawHandDrawnText(textImg, textStr, 0, 0, color.White)
 
 		// Now, draw the temporary image onto the main screen, centered.
 		op := &ebiten.DrawImageOptions{}
