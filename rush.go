@@ -60,7 +60,7 @@ var (
 )
 
 // 排行榜数据结构
-const highScoreFilePath = "rush-go/highscores.json"
+const highScoreFilePath = "highscores.json"
 
 type HighScore struct {
 	Name  string `json:"name"`
@@ -127,7 +127,23 @@ type Game struct {
 	nameInputPosition  int                 // 当前输入位置 (0-7)
 	nameInputCharGrid  [][]string          // 字符网格
 	nameInputGridRects [][]image.Rectangle // 字符网格的矩形区域
+
+	// 新增：Erase/End红框高亮timer
+	eraseBoxHighlightTimer int
+	endBoxHighlightTimer   int
 }
+
+const (
+	eraseBoxX1 = 110
+	eraseBoxY1 = 40
+	eraseBoxX2 = 151
+	eraseBoxY2 = 58
+
+	endBoxX1 = 110
+	endBoxY1 = 58
+	endBoxX2 = 151
+	endBoxY2 = 76
+)
 
 func NewGame() *Game {
 	_ = loadHighScores() // 启动时加载排行榜
@@ -378,6 +394,40 @@ func (g *Game) updateWin() error {
 	return nil
 }
 
+func (g *Game) pressBackspace(x, y int) bool {
+	if x < eraseBoxX1 || x > eraseBoxX2 || y < eraseBoxY1 || y > eraseBoxY2 {
+		return false
+	}
+
+	if g.nameInputPosition > 0 {
+		g.nameInputPosition--
+		if g.nameInputPosition < len(g.nameInput) {
+			g.nameInput = g.nameInput[:g.nameInputPosition]
+			g.eraseBoxHighlightTimer = 8
+		}
+	}
+
+	return true
+}
+
+func (g *Game) pressEnd(x, y int) bool {
+	if x < endBoxX1 || x > endBoxX2 || y < endBoxY1 || y > endBoxY2 {
+		return false
+	}
+
+	g.endBoxHighlightTimer = 8
+	if len(g.nameInput) > 0 {
+		g.insertHighScore(g.nameInput, g.score)
+		saveHighScores()
+		g.state = StateHighScores
+	} else {
+		g.insertHighScore("Player", g.score)
+		saveHighScores()
+		g.state = StateHighScores
+	}
+	return true
+}
+
 // updateNameInput 处理玩家名字输入 - 基于原版GetName实现
 func (g *Game) updateNameInput() error {
 	// 处理方向键导航
@@ -423,12 +473,28 @@ func (g *Game) updateNameInput() error {
 	// 处理鼠标点击
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
+		// 检查Erase红框
+		if g.pressBackspace(x, y) {
+			return nil
+		}
+		// 检查End红框
+		if g.pressEnd(x, y) {
+			return nil
+		}
 		g.handleNameInputClick(x, y)
 	}
 
 	// 处理触摸输入
 	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
 		x, y := ebiten.TouchPosition(id)
+		if x >= 110 && x < 150 && y >= 50 && y < 58 {
+			g.pressBackspace(x, y)
+			return nil
+		}
+		if x >= 110 && x < 150 && y >= 68 && y < 76 {
+			g.pressEnd(x, y)
+			return nil
+		}
 		g.handleNameInputClick(x, y)
 	}
 
@@ -439,26 +505,12 @@ func (g *Game) updateNameInput() error {
 
 	// 处理删除（Backspace键）
 	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
-		if g.nameInputPosition > 0 {
-			g.nameInputPosition--
-			if g.nameInputPosition < len(g.nameInput) {
-				g.nameInput = g.nameInput[:g.nameInputPosition]
-			}
-		}
+		g.pressBackspace(120, 40)
 	}
 
 	// 处理确认输入（空格键结束）
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		if len(g.nameInput) > 0 {
-			g.insertHighScore(g.nameInput, g.score)
-			saveHighScores()
-			g.state = StateHighScores
-		} else {
-			// 如果名字为空，使用默认名字
-			g.insertHighScore("Player", g.score)
-			saveHighScores()
-			g.state = StateHighScores
-		}
+		g.pressEnd(120, 60)
 	}
 
 	return nil
@@ -1192,11 +1244,20 @@ func (g *Game) drawNameInput(screen *ebiten.Image) {
 	drawHandDrawnText(screen, "Spc", 110, 59, color.RGBA{128, 128, 128, 255})
 	drawHandDrawnText(screen, "End", 110, 68, color.Black)
 
-	// // 绘制边框
-	ebitenutil.DrawRect(screen, 107, 3, 2, 76, color.RGBA{66, 66, 66, 255})
-	ebitenutil.DrawRect(screen, 108, 3, 2, 76, color.RGBA{66, 66, 66, 255})
-	ebitenutil.DrawRect(screen, 1, 13, 106, 2, color.RGBA{66, 66, 66, 255})
-	ebitenutil.DrawRect(screen, 1, 23, 106, 2, color.RGBA{66, 66, 66, 255})
+	// 高亮绘制
+	if g.eraseBoxHighlightTimer > 0 {
+		ebitenutil.DrawRect(screen, eraseBoxX1, eraseBoxY1, eraseBoxX2-eraseBoxX1, eraseBoxY2-eraseBoxY1, color.RGBA{255, 0, 0, 64})
+	}
+	if g.endBoxHighlightTimer > 0 {
+		ebitenutil.DrawRect(screen, endBoxX1, endBoxY1, endBoxX2-endBoxX1, endBoxY2-endBoxY1, color.RGBA{255, 0, 0, 64})
+	}
+	// 每帧递减timer
+	if g.eraseBoxHighlightTimer > 0 {
+		g.eraseBoxHighlightTimer--
+	}
+	if g.endBoxHighlightTimer > 0 {
+		g.endBoxHighlightTimer--
+	}
 
 	// 绘制当前输入的名字
 	displayName := g.nameInput
