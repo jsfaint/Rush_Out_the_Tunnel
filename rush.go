@@ -120,6 +120,13 @@ type Game struct {
 
 	explosionFrame int
 	explosionDone  bool
+
+	// 新增：名字输入相关状态
+	nameInputCursorX   int                 // 字符网格光标X位置 (0-12)
+	nameInputCursorY   int                 // 字符网格光标Y位置 (0-4)
+	nameInputPosition  int                 // 当前输入位置 (0-7)
+	nameInputCharGrid  [][]string          // 字符网格
+	nameInputGridRects [][]image.Rectangle // 字符网格的矩形区域
 }
 
 func NewGame() *Game {
@@ -134,6 +141,32 @@ func NewGame() *Game {
 		image.Rect(122, 38, 122+34, 38+9), // About
 		image.Rect(122, 53, 122+34, 53+9), // Exit
 	}
+
+	// 初始化名字输入字符网格
+	g.nameInputCharGrid = [][]string{
+		{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"},
+		{"N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"},
+		{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"},
+		{"n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"},
+		{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", " ", "", ""},
+	}
+
+	// 初始化字符网格矩形区域
+	g.nameInputGridRects = make([][]image.Rectangle, 5)
+	for y := 0; y < 5; y++ {
+		g.nameInputGridRects[y] = make([]image.Rectangle, 13)
+		for x := 0; x < 13; x++ {
+			// 跳过第5行的最后两个空位置
+			if y == 4 && x >= 11 {
+				continue
+			}
+			// 字符网格位置：从(2,29)开始，每个字符8x8像素
+			gridX := 2 + x*8
+			gridY := 29 + y*8
+			g.nameInputGridRects[y][x] = image.Rect(gridX, gridY, gridX+8, gridY+8)
+		}
+	}
+
 	return g
 }
 
@@ -148,11 +181,10 @@ func drawHandDrawnText(screen *ebiten.Image, str string, x, y int, clr color.Col
 		lineY := y + lineIdx*10 // 行间距10像素
 
 		for charIdx, char := range line {
-			if char < 0 || char > 127 {
-				continue // 跳过无效字符
-			}
-
 			char = char - 4
+			if char < 0 {
+				char = char + 127
+			}
 
 			charX := x + charIdx*8 // 字符间距9像素（8像素字符+1像素间距）
 			charY := lineY
@@ -217,6 +249,11 @@ func (g *Game) reset() {
 	}
 	g.tipTimer = 0
 	g.curTipIdx = 0
+
+	// 重置名字输入状态
+	g.nameInputCursorX = 0
+	g.nameInputCursorY = 0
+	g.nameInputPosition = 0
 }
 
 func (g *Game) spawnTunnel(x float64) {
@@ -341,25 +378,146 @@ func (g *Game) updateWin() error {
 	return nil
 }
 
-// updateNameInput 处理玩家名字输入
+// updateNameInput 处理玩家名字输入 - 基于原版GetName实现
 func (g *Game) updateNameInput() error {
-	var chars []rune
-	chars = ebiten.AppendInputChars(chars)
-	for _, key := range chars {
-		if len(g.nameInput) < 8 && ((key >= 'A' && key <= 'Z') || (key >= 'a' && key <= 'z') || (key >= '0' && key <= '9')) {
-			g.nameInput += string(key)
+	// 处理方向键导航
+	if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
+		g.nameInputCursorY--
+		if g.nameInputCursorY < 0 {
+			g.nameInputCursorY = 4
 		}
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(g.nameInput) > 0 {
-		g.nameInput = g.nameInput[:len(g.nameInput)-1]
+	if inpututil.IsKeyJustPressed(ebiten.KeyDown) {
+		g.nameInputCursorY++
+		if g.nameInputCursorY > 4 {
+			g.nameInputCursorY = 0
+		}
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && len(g.nameInput) > 0 {
-		g.insertHighScore(g.nameInput, g.score)
-		saveHighScores()
-		g.state = StateHighScores
-		return nil
+	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) {
+		g.nameInputCursorX--
+		if g.nameInputCursorY == 4 {
+			// 第5行只有11个字符（0-9和空格）
+			if g.nameInputCursorX < 0 {
+				g.nameInputCursorX = 10
+			}
+		} else {
+			if g.nameInputCursorX < 0 {
+				g.nameInputCursorX = 12
+			}
+		}
 	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyRight) {
+		g.nameInputCursorX++
+		if g.nameInputCursorY == 4 {
+			// 第5行只有11个字符
+			if g.nameInputCursorX > 10 {
+				g.nameInputCursorX = 0
+			}
+		} else {
+			if g.nameInputCursorX > 12 {
+				g.nameInputCursorX = 0
+			}
+		}
+	}
+
+	// 处理鼠标点击
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		x, y := ebiten.CursorPosition()
+		g.handleNameInputClick(x, y)
+	}
+
+	// 处理触摸输入
+	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
+		x, y := ebiten.TouchPosition(id)
+		g.handleNameInputClick(x, y)
+	}
+
+	// 处理字符输入（Enter键）
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		g.inputSelectedChar()
+	}
+
+	// 处理删除（Backspace键）
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+		if g.nameInputPosition > 0 {
+			g.nameInputPosition--
+			if g.nameInputPosition < len(g.nameInput) {
+				g.nameInput = g.nameInput[:g.nameInputPosition]
+			}
+		}
+	}
+
+	// 处理确认输入（空格键结束）
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		if len(g.nameInput) > 0 {
+			g.insertHighScore(g.nameInput, g.score)
+			saveHighScores()
+			g.state = StateHighScores
+		} else {
+			// 如果名字为空，使用默认名字
+			g.insertHighScore("Player", g.score)
+			saveHighScores()
+			g.state = StateHighScores
+		}
+	}
+
 	return nil
+}
+
+// handleNameInputClick 处理名字输入界面的点击事件
+func (g *Game) handleNameInputClick(x, y int) {
+	// 检查是否点击了字符网格
+	for gridY := 0; gridY < 5; gridY++ {
+		for gridX := 0; gridX < 13; gridX++ {
+			// 跳过第5行的空位置
+			if gridY == 4 && gridX >= 11 {
+				continue
+			}
+
+			if (image.Point{x, y}).In(g.nameInputGridRects[gridY][gridX]) {
+				g.nameInputCursorX = gridX
+				g.nameInputCursorY = gridY
+				g.inputSelectedChar()
+				return
+			}
+		}
+	}
+}
+
+// inputSelectedChar 输入当前选中的字符
+func (g *Game) inputSelectedChar() {
+	if g.nameInputPosition >= 8 {
+		return // 最多8个字符
+	}
+
+	// 获取当前光标位置的字符
+	if g.nameInputCursorY < len(g.nameInputCharGrid) && g.nameInputCursorX < len(g.nameInputCharGrid[g.nameInputCursorY]) {
+		char := g.nameInputCharGrid[g.nameInputCursorY][g.nameInputCursorX]
+		if char != "" {
+			// 如果是空格键，结束输入
+			if char == " " {
+				if len(g.nameInput) > 0 {
+					g.insertHighScore(g.nameInput, g.score)
+					saveHighScores()
+					g.state = StateHighScores
+				} else {
+					g.insertHighScore("Player", g.score)
+					saveHighScores()
+					g.state = StateHighScores
+				}
+				return
+			}
+
+			// 添加字符到输入缓冲区
+			if g.nameInputPosition >= len(g.nameInput) {
+				g.nameInput += char
+			} else {
+				// 在指定位置插入字符
+				g.nameInput = g.nameInput[:g.nameInputPosition] + char + g.nameInput[g.nameInputPosition:]
+			}
+			g.nameInputPosition++
+		}
+	}
 }
 
 // updatePause 处理暂停界面输入
@@ -402,6 +560,9 @@ func (g *Game) updateGameOver() error {
 	}
 	if g.isHighScore(g.score) {
 		g.nameInput = ""
+		g.nameInputCursorX = 0
+		g.nameInputCursorY = 0
+		g.nameInputPosition = 0
 		g.state = StateNameInput
 	} else if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
 		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
@@ -634,7 +795,7 @@ func (g *Game) drawHighScores(screen *ebiten.Image) {
 
 	// 显示当前高分榜
 	title := "TOP 5 SCORES"
-	drawHandDrawnText(screen, title, 50, 2, color.RGBA{0, 0, 0, 255})
+	drawHandDrawnText(screen, title, 30, 10, color.RGBA{0, 0, 0, 255})
 
 	for i, hs := range highScores {
 		name := hs.Name
@@ -648,11 +809,9 @@ func (g *Game) drawHighScores(screen *ebiten.Image) {
 			colorScore = color.RGBA{255, 0, 0, 255}
 		}
 		scoreStr := fmt.Sprintf("%d", hs.Score)
-		drawHandDrawnText(screen, fmt.Sprintf("%d. %s", i+1, name), 50, 12+11*i, colorName)
-		drawHandDrawnText(screen, scoreStr, 110, 12+11*i, colorScore)
+		drawHandDrawnText(screen, fmt.Sprintf("%d. %s", i+1, name), 30, 20+11*i, colorName)
+		drawHandDrawnText(screen, scoreStr, 110, 20+11*i, colorScore)
 	}
-
-	drawHandDrawnText(screen, "PRESS ENTER TO RETURN/CONTINUE", 45, 68, color.Gray{128})
 }
 
 func (g *Game) drawTitle(screen *ebiten.Image) {
@@ -930,7 +1089,7 @@ Release to go down
 Coin Increase score
 (:  Have fun!  :)
 `
-	drawHandDrawnText(screen, helpText, 0, 0, color.Black)
+	drawHandDrawnText(screen, helpText, 1, 1, color.Black)
 }
 
 // DrawAbout 绘制关于界面
@@ -945,7 +1104,7 @@ Created: 6/15/2005
 Welcome to:
 www.emsky.net
 `
-	drawHandDrawnText(screen, aboutText, 0, 0, color.Black)
+	drawHandDrawnText(screen, aboutText, 1, 1, color.Black)
 }
 
 // DrawWin 绘制胜利界面动画
@@ -990,13 +1149,77 @@ func (g *Game) drawGameOver(screen *ebiten.Image) {
 	}
 }
 
-// DrawNameInput 绘制名字输入界面
+// DrawNameInput 绘制名字输入界面 - 基于原版GetName实现
 func (g *Game) drawNameInput(screen *ebiten.Image) {
 	screen.Fill(color.White)
-	prompt := "ENTER YOUR NAME (A-Z, 0-9):"
-	drawHandDrawnText(screen, prompt, 20, 20, color.Black)
-	drawHandDrawnText(screen, g.nameInput+"_", 20, 30, color.RGBA{0, 0, 255, 255})
-	drawHandDrawnText(screen, "PRESS ENTER TO CONFIRM", 20, 50, color.Gray{128})
+
+	// 绘制标题
+	drawHandDrawnText(screen, "Your Name", 2, 5, color.Black)
+
+	// 绘制字符网格
+	for y := 0; y < 5; y++ {
+		for x := 0; x < 13; x++ {
+			// 跳过第5行的空位置
+			if y == 4 && x >= 11 {
+				continue
+			}
+
+			if y < len(g.nameInputCharGrid) && x < len(g.nameInputCharGrid[y]) {
+				char := g.nameInputCharGrid[y][x]
+				if char != "" {
+					// 特殊处理空格字符显示
+					displayChar := char
+					if char == " " {
+						displayChar = "Spc"
+					}
+
+					// 绘制字符
+					gridX := 2 + x*8
+					gridY := 29 + y*8
+					drawHandDrawnText(screen, displayChar, gridX, gridY, color.Black)
+				}
+			}
+		}
+	}
+
+	// 绘制操作说明（右侧）
+	drawHandDrawnText(screen, "Arrow", 110, 5, color.RGBA{128, 128, 128, 255})
+	drawHandDrawnText(screen, "Select", 110, 14, color.Black)
+	drawHandDrawnText(screen, "CR", 110, 23, color.RGBA{128, 128, 128, 255})
+	drawHandDrawnText(screen, "Input", 110, 32, color.Black)
+	drawHandDrawnText(screen, "BS", 110, 41, color.RGBA{128, 128, 128, 255})
+	drawHandDrawnText(screen, "Erase", 110, 50, color.Black)
+	drawHandDrawnText(screen, "Spc", 110, 59, color.RGBA{128, 128, 128, 255})
+	drawHandDrawnText(screen, "End", 110, 68, color.Black)
+
+	// // 绘制边框
+	ebitenutil.DrawRect(screen, 107, 3, 2, 76, color.RGBA{66, 66, 66, 255})
+	ebitenutil.DrawRect(screen, 108, 3, 2, 76, color.RGBA{66, 66, 66, 255})
+	ebitenutil.DrawRect(screen, 1, 13, 106, 2, color.RGBA{66, 66, 66, 255})
+	ebitenutil.DrawRect(screen, 1, 23, 106, 2, color.RGBA{66, 66, 66, 255})
+
+	// 绘制当前输入的名字
+	displayName := g.nameInput
+	if g.nameInputPosition < len(g.nameInput) {
+		// 在光标位置插入下划线
+		displayName = g.nameInput[:g.nameInputPosition] + "_" + g.nameInput[g.nameInputPosition:]
+	} else {
+		displayName = g.nameInput + "_"
+	}
+	drawHandDrawnText(screen, displayName, 2, 15, color.RGBA{0, 0, 255, 255})
+
+	// 绘制选择框高亮
+	if g.nameInputCursorY < len(g.nameInputGridRects) && g.nameInputCursorX < len(g.nameInputGridRects[g.nameInputCursorY]) {
+		rect := g.nameInputGridRects[g.nameInputCursorY][g.nameInputCursorX]
+
+		// 特殊处理第5行的空格键（跨越多个字符宽度）
+		if g.nameInputCursorY == 4 && g.nameInputCursorX == 10 {
+			// 空格键跨越3个字符宽度
+			ebitenutil.DrawRect(screen, float64(rect.Min.X), float64(rect.Min.Y), 24, 8, color.RGBA{0, 0, 255, 64})
+		} else {
+			ebitenutil.DrawRect(screen, float64(rect.Min.X), float64(rect.Min.Y), 8, 8, color.RGBA{0, 0, 255, 64})
+		}
+	}
 }
 
 // DrawPause 绘制暂停界面
