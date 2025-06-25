@@ -1,6 +1,7 @@
 package rush
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -16,18 +17,10 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	text "github.com/hajimehoshi/ebiten/v2/text/v2"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/opentype"
 )
 
 //go:embed assets/images
 var assetsFS embed.FS
-
-//go:embed assets/fonts/font.ttf
-var fontData []byte
-
-var chineseFontFace text.Face
 
 const (
 	screenWidth  = 160
@@ -55,14 +48,15 @@ const (
 )
 
 var (
-	submarineImage  *ebiten.Image
-	titleImage      *ebiten.Image
-	gameoverImage   *ebiten.Image
-	winImage        *ebiten.Image
-	coinImage       *ebiten.Image
-	bombImage       *ebiten.Image
-	tunnelWallColor = color.RGBA{139, 69, 19, 255}  // SaddleBrown
-	backgroundColor = color.RGBA{70, 130, 180, 255} // SteelBlue
+	submarineImage     *ebiten.Image
+	titleImage         *ebiten.Image
+	gameoverImage      *ebiten.Image
+	winImage           *ebiten.Image
+	coinImage          *ebiten.Image
+	bombImage          *ebiten.Image
+	handDrawnFontImage *ebiten.Image
+	tunnelWallColor    = color.RGBA{139, 69, 19, 255}  // SaddleBrown
+	backgroundColor    = color.RGBA{70, 130, 180, 255} // SteelBlue
 )
 
 // 排行榜数据结构
@@ -143,14 +137,42 @@ func NewGame() *Game {
 	return g
 }
 
-// drawText 辅助函数，简化 text/v2 的文本绘制
-func drawText(screen *ebiten.Image, str string, x, y int, clr color.Color) {
+// drawHandDrawnText 使用手绘字体渲染文本
+func drawHandDrawnText(screen *ebiten.Image, str string, x, y int, clr color.Color) {
+	if handDrawnFontImage == nil {
+		return
+	}
+
 	lines := strings.Split(str, "\n")
-	for i, line := range lines {
-		dopt := &text.DrawOptions{}
-		dopt.GeoM.Translate(float64(x), float64(y+i*(fontSize+1)))
-		dopt.ColorScale.ScaleWithColor(clr)
-		text.Draw(screen, line, chineseFontFace, dopt)
+	for lineIdx, line := range lines {
+		lineY := y + lineIdx*10 // 行间距10像素
+
+		for charIdx, char := range line {
+			if char < 0 || char > 127 {
+				continue // 跳过无效字符
+			}
+
+			char = char - 4
+
+			charX := x + charIdx*8 // 字符间距9像素（8像素字符+1像素间距）
+			charY := lineY
+
+			// 计算字符在字体图像中的位置
+			fontY := int(char) * 8
+
+			// 创建字符子图像
+			charRect := image.Rect(0, fontY, 8, fontY+8)
+			charSubImage := handDrawnFontImage.SubImage(charRect)
+
+			// 绘制字符
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64(charX), float64(charY))
+
+			// 应用颜色
+			op.ColorScale.ScaleWithColor(clr)
+
+			screen.DrawImage(charSubImage.(*ebiten.Image), op)
+		}
 	}
 }
 
@@ -280,7 +302,7 @@ func (g *Game) updateCountdown() error {
 func (g *Game) updateGame() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
 		g.state = StatePause
-		g.showMessage("暂停中", 60)
+		g.showMessage("Paused", 60)
 		return nil
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
@@ -344,7 +366,7 @@ func (g *Game) updateNameInput() error {
 func (g *Game) updatePause() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
 		g.state = StateGame
-		g.showMessage("继续游戏", 60)
+		g.showMessage("Resume", 60)
 	}
 	return nil
 }
@@ -433,11 +455,9 @@ func (g *Game) updateGameLogic() {
 		g.bombs--
 		g.isBombing = true
 		g.bombTimer = 15
-		g.showMessage("炸弹！", 30)
 		return
 	}
 	if isPressingBomb && g.bombs == 0 {
-		g.showMessage("炸弹已用尽", 60)
 	}
 	g.distance++
 	if g.distance%40 == 0 {
@@ -445,7 +465,7 @@ func (g *Game) updateGameLogic() {
 	}
 	if g.distance >= 4000 {
 		g.winAnimFrame = 0
-		g.showMessage("胜利！", 60)
+		g.showMessage("Win", 60)
 		g.state = StateWin
 		return
 	}
@@ -590,27 +610,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.drawAbout(screen)
 	case StateWin:
 		g.drawWin(screen)
-		return
 	case StateGameOver:
 		g.drawGameOver(screen)
-		return
 	case StateNameInput:
 		g.drawNameInput(screen)
-		return
 	case StatePause:
 		g.drawPause(screen)
-		return
 	case StateExitConfirm:
 		g.drawExitConfirm(screen)
-		return
 	case StateHighScores, StateHighScoresThenGame:
 		g.drawHighScores(screen)
-		return
 	}
 
 	// 消息提示统一绘制
 	if g.messageTimer > 0 {
-		drawText(screen, g.message, 40, 55, color.RGBA{0, 0, 0, 255})
+		drawHandDrawnText(screen, g.message, 40, 55, color.RGBA{0, 0, 0, 255})
 		g.messageTimer--
 	}
 }
@@ -619,8 +633,8 @@ func (g *Game) drawHighScores(screen *ebiten.Image) {
 	screen.Fill(color.White)
 
 	// 显示当前高分榜
-	title := "高分榜 Top 5"
-	drawText(screen, title, 50, 2, color.RGBA{0, 0, 0, 255})
+	title := "TOP 5 SCORES"
+	drawHandDrawnText(screen, title, 50, 2, color.RGBA{0, 0, 0, 255})
 
 	for i, hs := range highScores {
 		name := hs.Name
@@ -634,11 +648,11 @@ func (g *Game) drawHighScores(screen *ebiten.Image) {
 			colorScore = color.RGBA{255, 0, 0, 255}
 		}
 		scoreStr := fmt.Sprintf("%d", hs.Score)
-		drawText(screen, fmt.Sprintf("%d. %s", i+1, name), 50, 12+11*i, colorName)
-		drawText(screen, scoreStr, 110, 12+11*i, colorScore)
+		drawHandDrawnText(screen, fmt.Sprintf("%d. %s", i+1, name), 50, 12+11*i, colorName)
+		drawHandDrawnText(screen, scoreStr, 110, 12+11*i, colorScore)
 	}
 
-	drawText(screen, "按Enter返回/继续", 45, 68, color.Gray{128})
+	drawHandDrawnText(screen, "PRESS ENTER TO RETURN/CONTINUE", 45, 68, color.Gray{128})
 }
 
 func (g *Game) drawTitle(screen *ebiten.Image) {
@@ -715,8 +729,8 @@ func (g *Game) drawGameScene(screen *ebiten.Image) {
 
 func (g *Game) drawGameHUD(screen *ebiten.Image) {
 	// Draw HUD text (score)
-	scoreText := fmt.Sprintf("Score: %d", g.score)
-	drawText(screen, scoreText, 5, 5, color.White)
+	scoreText := fmt.Sprintf("SCORE: %d", g.score)
+	drawHandDrawnText(screen, scoreText, 5, 5, color.White)
 
 	// Draw bombs
 	for i := 0; i < g.bombs; i++ {
@@ -770,31 +784,78 @@ func loadImage(path string) *ebiten.Image {
 	return ebiten.NewImageFromImage(img)
 }
 
-func LoadChineseFont() {
-	ft, err := opentype.Parse(fontData)
+func LoadAssets() error {
+	// 加载潜艇图像
+	submarineBytes, err := assetsFS.ReadFile("assets/images/submarine.png")
 	if err != nil {
-		panic("无法解析中文字体: " + err.Error())
+		return err
 	}
-	face, err := opentype.NewFace(ft, &opentype.FaceOptions{
-		Size:    fontSize,
-		DPI:     72,
-		Hinting: font.HintingFull,
-	})
+	submarineImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(submarineBytes))
 	if err != nil {
-		panic("无法创建中文字体Face: " + err.Error())
+		return err
 	}
-	chineseFontFace = text.NewGoXFace(face)
-}
 
-func LoadAssets() {
-	submarineImage = loadImage("submarine.png")
-	titleImage = loadImage("title.png")
-	gameoverImage = loadImage("gameover.png")
-	winImage = loadImage("win.png")
-	coinImage = loadImage("coin.png")
-	bombImage = loadImage("bomb.png")
+	// 加载标题图像
+	titleBytes, err := assetsFS.ReadFile("assets/images/title.png")
+	if err != nil {
+		return err
+	}
+	titleImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(titleBytes))
+	if err != nil {
+		return err
+	}
 
-	LoadChineseFont()
+	// 加载游戏结束图像
+	gameoverBytes, err := assetsFS.ReadFile("assets/images/gameover.png")
+	if err != nil {
+		return err
+	}
+	gameoverImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(gameoverBytes))
+	if err != nil {
+		return err
+	}
+
+	// 加载胜利图像
+	winBytes, err := assetsFS.ReadFile("assets/images/win.png")
+	if err != nil {
+		return err
+	}
+	winImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(winBytes))
+	if err != nil {
+		return err
+	}
+
+	// 加载金币图像
+	coinBytes, err := assetsFS.ReadFile("assets/images/coin.png")
+	if err != nil {
+		return err
+	}
+	coinImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(coinBytes))
+	if err != nil {
+		return err
+	}
+
+	// 加载炸弹图像
+	bombBytes, err := assetsFS.ReadFile("assets/images/bomb.png")
+	if err != nil {
+		return err
+	}
+	bombImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(bombBytes))
+	if err != nil {
+		return err
+	}
+
+	// 加载手绘字体图像
+	handDrawnFontBytes, err := assetsFS.ReadFile("assets/images/handdrawn_font.png")
+	if err != nil {
+		return err
+	}
+	handDrawnFontImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(handDrawnFontBytes))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // 排行榜读写
@@ -865,12 +926,11 @@ Hold [UP] to go up
 Release to go down
 [Z] Pause the game
 [X] Launch the bomb
-[Esc] Exit game
+[ESC] Exit game
 Coin Increase score
 (:  Have fun!  :)
-Press Enter to return
 `
-	drawText(screen, helpText, 5, 0, color.Black)
+	drawHandDrawnText(screen, helpText, 0, 0, color.Black)
 }
 
 // DrawAbout 绘制关于界面
@@ -882,21 +942,21 @@ Version: 1.0
 Design : Anson
 Program: Jay
 Created: 6/15/2005
-Welcome to: www.emsky.net
-Press Enter to return
+Welcome to:
+www.emsky.net
 `
-	drawText(screen, aboutText, 5, 0, color.Black)
+	drawHandDrawnText(screen, aboutText, 0, 0, color.Black)
 }
 
 // DrawWin 绘制胜利界面动画
 func (g *Game) drawWin(screen *ebiten.Image) {
 	screen.Fill(color.White)
-	msg := "YOU WIN"
+	msg := "You Win"
 	letters := g.winAnimFrame/15 + 1
 	if letters > len(msg) {
 		letters = len(msg)
 	}
-	drawText(screen, msg[:letters], 50, 40, color.RGBA{0, 128, 0, 255})
+	drawHandDrawnText(screen, msg[:letters], 50, 40, color.RGBA{0, 128, 0, 255})
 	if g.winAnimFrame < len(msg)*15 {
 		g.winAnimFrame++
 	}
@@ -933,20 +993,20 @@ func (g *Game) drawGameOver(screen *ebiten.Image) {
 // DrawNameInput 绘制名字输入界面
 func (g *Game) drawNameInput(screen *ebiten.Image) {
 	screen.Fill(color.White)
-	prompt := "请输入你的名字 (A-Z, 0-9):"
-	drawText(screen, prompt, 20, 20, color.Black)
-	drawText(screen, g.nameInput+"_", 20, 30, color.RGBA{0, 0, 255, 255})
-	drawText(screen, "按Enter确认", 20, 50, color.Gray{128})
+	prompt := "ENTER YOUR NAME (A-Z, 0-9):"
+	drawHandDrawnText(screen, prompt, 20, 20, color.Black)
+	drawHandDrawnText(screen, g.nameInput+"_", 20, 30, color.RGBA{0, 0, 255, 255})
+	drawHandDrawnText(screen, "PRESS ENTER TO CONFIRM", 20, 50, color.Gray{128})
 }
 
 // DrawPause 绘制暂停界面
 func (g *Game) drawPause(screen *ebiten.Image) {
 	screen.Fill(color.White)
-	drawText(screen, "暂停中", 60, 40, color.RGBA{255, 0, 0, 255})
+	drawHandDrawnText(screen, "Paused", 60, 40, color.RGBA{255, 0, 0, 255})
 }
 
 // DrawExitConfirm 绘制退出确认界面
 func (g *Game) drawExitConfirm(screen *ebiten.Image) {
 	screen.Fill(color.White)
-	drawText(screen, "确认退出？Y/N", 40, 40, color.RGBA{255, 0, 0, 255})
+	drawHandDrawnText(screen, "Exit game? Y/N", 40, 40, color.RGBA{255, 0, 0, 255})
 }
