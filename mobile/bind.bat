@@ -1,1 +1,0 @@
-ebitenmobile bind -target android -javapkg net.emsky.rush -o rush.aar .
