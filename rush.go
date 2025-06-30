@@ -273,10 +273,6 @@ func (g *Game) reset() {
 	g.bombButtonRect = image.Rect(margin, screenHeight-buttonSize-margin, margin+buttonSize, screenHeight-margin)
 	g.upButtonRect = image.Rect(screenWidth-buttonSize-margin, screenHeight-buttonSize-margin, screenWidth-margin, screenHeight-margin)
 
-	for x := 0.0; x < screenWidth+10; x += 10 {
-		g.spawnTunnel(x)
-	}
-
 	g.tips = []string{
 		"I want a GF!  ", "Be careful~   ", "Take it easy~ ", "A red fish!   ",
 		"henhenhahi!   ", "QQ:171290999~ ", "QQ:68862232~  ", "I like NDS!   ",
@@ -658,9 +654,6 @@ func (g *Game) updateGameLogic() {
 			g.isBombing = false
 			g.tunnels = []*Tunnel{}
 			g.collectibles = []*Collectible{}
-			for x := 0.0; x < screenWidth+10; x += 10 {
-				g.spawnTunnel(x)
-			}
 		}
 		return
 	}
@@ -710,6 +703,24 @@ func (g *Game) updateGameLogic() {
 	if g.slope == 2 && g.tunnelTopY < screenHeight-g.tunnelHeight-10 {
 		g.tunnelTopY++
 	}
+
+	// 新增：每帧动态生成隧道（与原版一致）
+	// 每帧在屏幕右侧生成新的隧道段，使用最新的 tunnelTopY 和 tunnelHeight
+	g.spawnTunnel(159)
+
+	// 每帧将所有隧道段左移1像素
+	for _, t := range g.tunnels {
+		t.x -= 1.0
+	}
+
+	// 移除超出屏幕左侧的隧道段
+	remainingTunnels := g.tunnels[:0]
+	for _, t := range g.tunnels {
+		if t.x+t.width > 0 {
+			remainingTunnels = append(remainingTunnels, t)
+		}
+	}
+	g.tunnels = remainingTunnels
 
 	// 新增：原版道具生成逻辑
 	if g.distance <= 3840 {
@@ -769,17 +780,6 @@ func (g *Game) updateGameLogic() {
 	}
 	if g.player.vy < -1.0 {
 		g.player.vy = -1.0
-	}
-	for _, t := range g.tunnels {
-		t.x -= 1.0
-	}
-	if len(g.tunnels) > 0 {
-		firstTunnel := g.tunnels[0]
-		if firstTunnel.x+firstTunnel.width < 0 {
-			g.tunnels = g.tunnels[1:]
-			lastTunnel := g.tunnels[len(g.tunnels)-1]
-			g.spawnTunnel(lastTunnel.x + lastTunnel.width)
-		}
 	}
 	for _, c := range g.collectibles {
 		c.x -= 1.0
