@@ -145,6 +145,20 @@ const (
 	endBoxY2 = 76
 )
 
+// 全局退出标志
+var shouldExitApp bool
+
+// SetExitFlag 设置退出标志
+func SetExitFlag(exit bool) {
+	shouldExitApp = exit
+	log.Printf("Exit flag set to: %v", exit)
+}
+
+// ShouldExit 检查是否应该退出
+func ShouldExit() bool {
+	return shouldExitApp
+}
+
 func NewGame() *Game {
 	_ = loadHighScores() // 启动时加载排行榜
 	g := &Game{}
@@ -584,7 +598,11 @@ func (g *Game) updatePause() error {
 // updateExitConfirm 处理退出确认界面输入
 func (g *Game) updateExitConfirm() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyY) {
-		return ebiten.Termination
+		// 设置退出标志而不是直接返回 ebiten.Termination
+		// 在 Android 中，ebiten.Termination 不会关闭应用
+		// 需要通过 MainActivity 来处理退出
+		SetExitFlag(true)
+		return nil
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyN) || inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		g.state = StateTitle
@@ -774,7 +792,9 @@ func (g *Game) selectMenuItem() error {
 	case 2: // About
 		g.state = StateAbout
 	case 3: // Exit
-		return ebiten.Termination
+		// 设置退出标志而不是直接返回 ebiten.Termination
+		SetExitFlag(true)
+		return nil
 	}
 	return nil
 }
@@ -868,8 +888,14 @@ func (g *Game) drawHighScores(screen *ebiten.Image) {
 
 func (g *Game) drawTitle(screen *ebiten.Image) {
 	screen.Fill(color.White)
-	op := &ebiten.DrawImageOptions{}
-	screen.DrawImage(titleImage, op)
+
+	if titleImage != nil {
+		op := &ebiten.DrawImageOptions{}
+		screen.DrawImage(titleImage, op)
+	} else {
+		// 如果标题图像加载失败，显示文本标题
+		ebitenutil.DebugPrint(screen, "RUSH OUT THE TUNNEL\n\nAssets failed to load!\nTitle image is nil")
+	}
 
 	// Draw menu selector
 	// Adjusted Y and Height to better center the highlight on the text.
@@ -933,7 +959,10 @@ func (g *Game) drawGameScene(screen *ebiten.Image) {
 		op.GeoM.Translate(g.player.x, g.player.y)
 		screen.DrawImage(submarineImage, op)
 	} else {
-		ebitenutil.DebugPrint(screen, "Loading assets...")
+		// 提供更详细的调试信息
+		ebitenutil.DebugPrint(screen, "Assets loading failed!\nSubmarine image is nil")
+		// 绘制一个简单的矩形作为玩家
+		ebitenutil.DrawRect(screen, g.player.x, g.player.y, 8, 4, color.RGBA{255, 255, 0, 255})
 	}
 }
 
