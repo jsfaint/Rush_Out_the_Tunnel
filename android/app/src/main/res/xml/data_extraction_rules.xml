@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- 排除游戏数据文件 -->
+        <exclude domain="file" path="game_data"/>
+    </cloud-backup>
+    <device-transfer>
+        <!-- 排除游戏数据文件 -->
+        <exclude domain="file" path="game_data"/>
+    </device-transfer>
+</data-extraction-rules> 

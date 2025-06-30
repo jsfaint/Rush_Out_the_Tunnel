@@ -5,3 +5,5 @@
 *.apk
 *.wasm
 *.json
+android/app/build/
+android/.gradle/
