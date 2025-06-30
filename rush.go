@@ -131,6 +131,11 @@ type Game struct {
 	// 新增：Erase/End红框高亮timer
 	eraseBoxHighlightTimer int
 	endBoxHighlightTimer   int
+
+	// 新增：原版道具生成相关变量
+	nextItem int // 下一个道具生成距离
+	thisItem int // 当前道具生成距离
+	itemPt   int // 道具指针
 }
 
 const (
@@ -257,6 +262,11 @@ func (g *Game) reset() {
 	g.slope = 0
 	g.player.y = g.tunnelTopY + g.tunnelHeight/2
 
+	// 新增：初始化原版道具生成变量
+	g.nextItem = (rand.Intn(5) + 1) * 32
+	g.thisItem = 0
+	g.itemPt = 0
+
 	// Define button position and size
 	buttonSize := 40
 	margin := 5
@@ -293,18 +303,6 @@ func (g *Game) spawnTunnel(x float64) {
 		height: g.tunnelHeight,
 		width:  10,
 	})
-
-	// Occasionally spawn a coin
-	if rand.Intn(10) == 0 { // 10% chance
-		coinY := g.tunnelTopY + g.tunnelHeight/2 - float64(coinImage.Bounds().Dy()/2)
-		g.collectibles = append(g.collectibles, &Collectible{
-			image: coinImage,
-			x:     x,
-			y:     coinY,
-			w:     coinImage.Bounds().Dx(),
-			h:     coinImage.Bounds().Dy(),
-		})
-	}
 }
 
 // updateTitle 处理标题界面输入与菜单选择
@@ -700,10 +698,10 @@ func (g *Game) updateGameLogic() {
 		g.state = StateWin
 		return
 	}
-	if g.distance%100 == 0 {
+	if g.distance%10 == 0 {
 		g.slope = rand.Intn(3)
 	}
-	if g.distance%200 == 0 && g.tunnelHeight > 25 {
+	if g.distance%200 == 0 && g.tunnelHeight > 20 {
 		g.tunnelHeight--
 	}
 	if g.slope == 0 && g.tunnelTopY > 10 {
@@ -712,6 +710,38 @@ func (g *Game) updateGameLogic() {
 	if g.slope == 2 && g.tunnelTopY < screenHeight-g.tunnelHeight-10 {
 		g.tunnelTopY++
 	}
+
+	// 新增：原版道具生成逻辑
+	if g.distance <= 3840 {
+		if g.distance-g.thisItem == g.nextItem {
+			// 检查是否有空闲的道具槽位
+			hasEmptySlot := false
+			for _, c := range g.collectibles {
+				if c == nil {
+					hasEmptySlot = true
+					break
+				}
+			}
+			if !hasEmptySlot && len(g.collectibles) < 5 {
+				hasEmptySlot = true
+			}
+
+			if hasEmptySlot {
+				// 生成金币
+				coinY := g.tunnelTopY + float64(rand.Intn(int(g.tunnelHeight)-10))
+				g.collectibles = append(g.collectibles, &Collectible{
+					image: coinImage,
+					x:     157,
+					y:     coinY,
+					w:     coinImage.Bounds().Dx(),
+					h:     coinImage.Bounds().Dy(),
+				})
+			}
+			g.thisItem = g.distance
+			g.nextItem = (rand.Intn(5) + 1) * 32
+		}
+	}
+
 	isPressingUp := ebiten.IsKeyPressed(ebiten.KeyUp)
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
