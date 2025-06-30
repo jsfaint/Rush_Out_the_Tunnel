@@ -5,7 +5,6 @@ echo ========================================
 
 echo.
 echo 步骤 1: 生成 rush.aar...
-cd mobile
 ebitenmobile bind -target android -javapkg net.emsky.rush -o rush.aar .
 if %ERRORLEVEL% NEQ 0 (
     echo 错误: 生成 rush.aar 失败
@@ -15,9 +14,8 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo 步骤 2: 复制 rush.aar 到 Android 项目...
-cd ..
-if exist "mobile\rush.aar" (
-    copy "mobile\rush.aar" "android\app\libs\"
+if exist "rush.aar" (
+    copy "rush.aar" "android\app\libs\"
     echo rush.aar 已复制到 android\app\libs\
 ) else (
     echo 错误: 未找到 rush.aar 文件
