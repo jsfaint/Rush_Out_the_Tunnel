@@ -784,6 +784,13 @@ func (g *Game) updateGameLogic() {
 	for _, c := range g.collectibles {
 		c.x -= 1.0
 	}
+
+	// 检查玩家是否撞到顶部或底部
+	if g.player.y < 0 || int(g.player.y)+4 > screenHeight {
+		g.state = StateGameOver
+		return
+	}
+
 	playerRect := image.Rect(int(g.player.x), int(g.player.y), int(g.player.x)+8, int(g.player.y)+4)
 	for _, t := range g.tunnels {
 		topRect := image.Rect(int(t.x), 0, int(t.x+t.width), int(t.topY))
@@ -793,6 +800,7 @@ func (g *Game) updateGameLogic() {
 			return
 		}
 	}
+
 	remainingCollectibles := g.collectibles[:0]
 	for _, c := range g.collectibles {
 		collectibleRect := image.Rect(int(c.x), int(c.y), int(c.x)+c.w, int(c.y)+c.h)
