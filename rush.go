@@ -648,39 +648,121 @@ func (g *Game) updateHighScoresThenGame() error {
 
 // updateGameLogic 保留原有 updateGame 的主逻辑部分
 func (g *Game) updateGameLogic() {
+	// 1. 炸弹状态递减与爆炸效果
 	if g.isBombing {
-		g.bombTimer--
-		if g.bombTimer <= 0 {
-			g.isBombing = false
-			g.tunnels = []*Tunnel{}
-			g.collectibles = []*Collectible{}
-		}
+		g.updateBombState()
 		return
 	}
-	isPressingBomb := inpututil.IsKeyJustPressed(ebiten.KeyX)
+
+	// 2. 炸弹触发
+	g.tryTriggerBomb()
+	if g.isBombing {
+		return
+	}
+
+	// 3. 距离、分数、胜利判定
+	g.updateDistanceAndScore()
+	if g.state == StateWin {
+		return
+	}
+
+	// 4. 隧道坡度与高度调整
+	g.updateTunnelSlopeAndHeight()
+
+	// 5. 隧道生成与移动
+	g.spawnTunnelIfNeeded()
+	g.moveTunnels()
+	g.removeOffscreenTunnels()
+
+	// 6. 道具生成与移动
+	if g.shouldSpawnCollectible() {
+		g.spawnCollectible()
+	}
+	g.moveCollectibles()
+	g.removeOffscreenCollectibles()
+
+	// 7. 玩家操作与物理
+	isUp := g.isPressingUp()
+	g.updatePlayerVelocity(isUp)
+	g.clampPlayerVelocity()
+	g.updatePlayerPosition()
+
+	// 8. 碰撞检测
+	if g.checkPlayerBoundaryCollision() {
+		g.state = StateGameOver
+		return
+	}
+	if g.checkPlayerTunnelCollision() {
+		g.state = StateGameOver
+		return
+	}
+	g.checkPlayerCollectibleCollision()
+
+	// 9. 消息提示
+	g.updateTipMessage()
+}
+
+// isPressingBomb 检查当前是否有炸弹触发输入（键盘、鼠标、触摸）
+func (g *Game) isPressingBomb() bool {
+	if inpututil.IsKeyJustPressed(ebiten.KeyX) {
+		return true
+	}
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
 		if g.bombButtonRect.Min.X <= x && x < g.bombButtonRect.Max.X && g.bombButtonRect.Min.Y <= y && y < g.bombButtonRect.Max.Y {
-			isPressingBomb = true
+			return true
 		}
 	}
-	if !isPressingBomb {
-		for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
-			x, y := ebiten.TouchPosition(id)
-			if g.bombButtonRect.Min.X <= x && x < g.bombButtonRect.Max.X && g.bombButtonRect.Min.Y <= y && y < g.bombButtonRect.Max.Y {
-				isPressingBomb = true
-				break
-			}
+	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
+		x, y := ebiten.TouchPosition(id)
+		if g.bombButtonRect.Min.X <= x && x < g.bombButtonRect.Max.X && g.bombButtonRect.Min.Y <= y && y < g.bombButtonRect.Max.Y {
+			return true
 		}
 	}
-	if isPressingBomb && g.bombs > 0 && !g.isBombing {
+	return false
+}
+
+// isPressingUp 检查当前是否有上升输入（键盘、鼠标、触摸）
+func (g *Game) isPressingUp() bool {
+	if ebiten.IsKeyPressed(ebiten.KeyUp) {
+		return true
+	}
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		x, y := ebiten.CursorPosition()
+		if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
+			return true
+		}
+	}
+	for _, id := range ebiten.TouchIDs() {
+		x, y := ebiten.TouchPosition(id)
+		if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
+			return true
+		}
+	}
+	return false
+}
+
+// updateBombState 处理炸弹状态递减、爆炸效果（清空隧道和道具）
+func (g *Game) updateBombState() {
+	g.bombTimer--
+	if g.bombTimer <= 0 {
+		g.isBombing = false
+		g.tunnels = []*Tunnel{}
+		g.collectibles = []*Collectible{}
+	}
+}
+
+// tryTriggerBomb 检查是否满足触发炸弹条件，若满足则消耗炸弹并进入爆炸状态
+func (g *Game) tryTriggerBomb() {
+	if g.isPressingBomb() && g.bombs > 0 && !g.isBombing {
 		g.bombs--
 		g.isBombing = true
 		g.bombTimer = 15
-		return
 	}
-	if isPressingBomb && g.bombs == 0 {
-	}
+}
+
+// updateDistanceAndScore 距离递增、分数递增，胜利判定
+func (g *Game) updateDistanceAndScore() {
 	g.distance++
 	if g.distance%40 == 0 {
 		g.score++
@@ -689,8 +771,11 @@ func (g *Game) updateGameLogic() {
 		g.winAnimFrame = 0
 		g.showMessage("Win", 60)
 		g.state = StateWin
-		return
 	}
+}
+
+// updateTunnelSlopeAndHeight 隧道坡度、顶部高度、隧道高度的动态调整
+func (g *Game) updateTunnelSlopeAndHeight() {
 	if g.distance%10 == 0 {
 		g.slope = rand.Intn(3)
 	}
@@ -703,116 +788,148 @@ func (g *Game) updateGameLogic() {
 	if g.slope == 2 && g.tunnelTopY < screenHeight-g.tunnelHeight-10 {
 		g.tunnelTopY++
 	}
+}
 
-	// 新增：每帧动态生成隧道（与原版一致）
-	// 每帧在屏幕右侧生成新的隧道段，使用最新的 tunnelTopY 和 tunnelHeight
+// spawnTunnelIfNeeded 判断是否需要生成新隧道段并生成
+func (g *Game) spawnTunnelIfNeeded() {
+	// 每帧在屏幕右侧生成新的隧道段
 	g.spawnTunnel(159)
+}
 
-	// 每帧将所有隧道段左移1像素
+// moveTunnels 所有隧道段左移
+func (g *Game) moveTunnels() {
 	for _, t := range g.tunnels {
 		t.x -= 1.0
 	}
+}
 
-	// 移除超出屏幕左侧的隧道段
-	remainingTunnels := g.tunnels[:0]
+// removeOffscreenTunnels 移除超出屏幕的隧道段
+func (g *Game) removeOffscreenTunnels() {
+	remaining := g.tunnels[:0]
 	for _, t := range g.tunnels {
 		if t.x+t.width > 0 {
-			remainingTunnels = append(remainingTunnels, t)
+			remaining = append(remaining, t)
 		}
 	}
-	g.tunnels = remainingTunnels
+	g.tunnels = remaining
+}
 
-	// 新增：原版道具生成逻辑
-	if g.distance <= 3840 {
-		if g.distance-g.thisItem == g.nextItem {
-			// 检查是否有空闲的道具槽位
-			hasEmptySlot := false
-			for _, c := range g.collectibles {
-				if c == nil {
-					hasEmptySlot = true
-					break
-				}
-			}
-			if !hasEmptySlot && len(g.collectibles) < 5 {
-				hasEmptySlot = true
-			}
+// shouldSpawnCollectible 判断当前帧是否应生成新道具
+func (g *Game) shouldSpawnCollectible() bool {
+	if g.distance > 3840 {
+		return false
+	}
+	return g.distance-g.thisItem == g.nextItem
+}
 
-			if hasEmptySlot {
-				// 生成金币
-				coinY := g.tunnelTopY + float64(rand.Intn(int(g.tunnelHeight)-10))
-				g.collectibles = append(g.collectibles, &Collectible{
-					image: coinImage,
-					x:     157,
-					y:     coinY,
-					w:     coinImage.Bounds().Dx(),
-					h:     coinImage.Bounds().Dy(),
-				})
-			}
-			g.thisItem = g.distance
-			g.nextItem = (rand.Intn(5) + 1) * 32
+// spawnCollectible 生成新道具（如金币）
+func (g *Game) spawnCollectible() {
+	// 检查是否有空闲的道具槽位
+	hasEmptySlot := false
+	for _, c := range g.collectibles {
+		if c == nil {
+			hasEmptySlot = true
+			break
 		}
 	}
+	if !hasEmptySlot && len(g.collectibles) < 5 {
+		hasEmptySlot = true
+	}
+	if hasEmptySlot {
+		coinY := g.tunnelTopY + float64(rand.Intn(int(g.tunnelHeight)-10))
+		g.collectibles = append(g.collectibles, &Collectible{
+			image: coinImage,
+			x:     157,
+			y:     coinY,
+			w:     coinImage.Bounds().Dx(),
+			h:     coinImage.Bounds().Dy(),
+		})
+	}
+	g.thisItem = g.distance
+	g.nextItem = (rand.Intn(5) + 1) * 32
+}
 
-	isPressingUp := ebiten.IsKeyPressed(ebiten.KeyUp)
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-		x, y := ebiten.CursorPosition()
-		if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
-			isPressingUp = true
+// moveCollectibles 所有道具左移
+func (g *Game) moveCollectibles() {
+	for _, c := range g.collectibles {
+		c.x -= 1.0
+	}
+}
+
+// removeOffscreenCollectibles 移除超出屏幕的道具
+func (g *Game) removeOffscreenCollectibles() {
+	remaining := g.collectibles[:0]
+	for _, c := range g.collectibles {
+		if c.x+float64(c.w) > 0 {
+			remaining = append(remaining, c)
 		}
 	}
-	if !isPressingUp {
-		for _, id := range ebiten.TouchIDs() {
-			x, y := ebiten.TouchPosition(id)
-			if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
-				isPressingUp = true
-				break
-			}
-		}
-	}
-	if isPressingUp {
+	g.collectibles = remaining
+}
+
+// updatePlayerVelocity 根据输入更新玩家速度
+func (g *Game) updatePlayerVelocity(isUp bool) {
+	if isUp {
 		g.player.vy -= 0.2
 	} else {
 		g.player.vy += 0.1
 	}
-	g.player.y += g.player.vy
+}
+
+// clampPlayerVelocity 限制玩家速度在合理范围
+func (g *Game) clampPlayerVelocity() {
 	if g.player.vy > 1.0 {
 		g.player.vy = 1.0
 	}
 	if g.player.vy < -1.0 {
 		g.player.vy = -1.0
 	}
-	for _, c := range g.collectibles {
-		c.x -= 1.0
-	}
+}
 
-	// 检查玩家是否撞到顶部或底部
-	if g.player.y < 0 || int(g.player.y)+4 > screenHeight {
-		g.state = StateGameOver
-		return
-	}
+// updatePlayerPosition 根据速度更新玩家位置
+func (g *Game) updatePlayerPosition() {
+	g.player.y += g.player.vy
+}
 
+// checkPlayerBoundaryCollision 检查玩家是否撞到上下边界
+func (g *Game) checkPlayerBoundaryCollision() bool {
+	return g.player.y < 0 || int(g.player.y)+4 > screenHeight
+}
+
+// checkPlayerTunnelCollision 检查玩家是否撞到隧道
+func (g *Game) checkPlayerTunnelCollision() bool {
 	playerRect := image.Rect(int(g.player.x), int(g.player.y), int(g.player.x)+8, int(g.player.y)+4)
 	for _, t := range g.tunnels {
 		topRect := image.Rect(int(t.x), 0, int(t.x+t.width), int(t.topY))
 		bottomRect := image.Rect(int(t.x), int(t.topY+t.height), int(t.x+t.width), screenHeight)
 		if playerRect.Overlaps(topRect) || playerRect.Overlaps(bottomRect) {
-			g.state = StateGameOver
-			return
+			return true
 		}
 	}
+	return false
+}
 
-	remainingCollectibles := g.collectibles[:0]
+// checkPlayerCollectibleCollision 检查玩家是否吃到道具，处理分数和消息
+func (g *Game) checkPlayerCollectibleCollision() (collected bool) {
+	playerRect := image.Rect(int(g.player.x), int(g.player.y), int(g.player.x)+8, int(g.player.y)+4)
+	remaining := g.collectibles[:0]
+	collected = false
 	for _, c := range g.collectibles {
 		collectibleRect := image.Rect(int(c.x), int(c.y), int(c.x)+c.w, int(c.y)+c.h)
 		if playerRect.Overlaps(collectibleRect) {
 			g.score += 5
 			g.showMessage("获得金币！", 30)
+			collected = true
 			continue
-		} else if c.x+float64(c.w) > 0 {
-			remainingCollectibles = append(remainingCollectibles, c)
 		}
+		remaining = append(remaining, c)
 	}
-	g.collectibles = remainingCollectibles
+	g.collectibles = remaining
+	return
+}
+
+// updateTipMessage 定时显示提示消息
+func (g *Game) updateTipMessage() {
 	g.tipTimer++
 	if g.tipTimer%200 == 0 {
 		g.curTipIdx = rand.Intn(len(g.tips))
