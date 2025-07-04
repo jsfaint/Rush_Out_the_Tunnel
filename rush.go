@@ -12,6 +12,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -158,6 +159,10 @@ var shouldExitApp bool
 func SetExitFlag(exit bool) {
 	shouldExitApp = exit
 	log.Printf("Exit flag set to: %v", exit)
+
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
+		os.Exit(0)
+	}
 }
 
 // ShouldExit 检查是否应该退出
