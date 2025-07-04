@@ -7,3 +7,4 @@
 *.json
 mobile/android/app/build/
 mobile/android/.gradle/
+.idea/
