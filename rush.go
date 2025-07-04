@@ -3,7 +3,6 @@ package rush
 import (
 	"bytes"
 	"embed"
-	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -70,6 +69,7 @@ type HighScore struct {
 }
 
 var highScores [5]HighScore
+var highScoreStorage HighScoreStorage
 
 type Player struct {
 	x, y float64
@@ -245,6 +245,7 @@ func LoadAssets() error {
 }
 
 func NewGame() *Game {
+	highScoreStorage = NewHighScoreStorage()
 	g := &Game{}
 	_ = g.loadHighScores() // 启动时加载排行榜
 	g.reset()              // reset is called first
@@ -1262,17 +1263,11 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 // 排行榜读写
 func (g *Game) loadHighScores() error {
-	file, err := os.Open(highScoreFilePath)
+	loaded, err := highScoreStorage.Load()
 	if err != nil {
 		for i := range highScores {
 			highScores[i] = HighScore{"", 0}
 		}
-		return nil
-	}
-	defer file.Close()
-	dec := json.NewDecoder(file)
-	var loaded []HighScore
-	if err := dec.Decode(&loaded); err != nil {
 		return err
 	}
 	for i := range highScores {
@@ -1286,13 +1281,7 @@ func (g *Game) loadHighScores() error {
 }
 
 func (g *Game) saveHighScores() error {
-	file, err := os.Create(highScoreFilePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	enc := json.NewEncoder(file)
-	return enc.Encode(highScores[:])
+	return highScoreStorage.Save(highScores[:])
 }
 
 func (g *Game) insertHighScore(name string, score int) {
