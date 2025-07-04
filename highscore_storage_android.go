@@ -12,11 +12,22 @@ type androidHighScoreStorage struct {
 	filePath string
 }
 
+var customHighScoreDir string
+
+// SetHighScoreDir 由 mobile 包调用，设置高分存储目录
+func SetHighScoreDir(path string) {
+	customHighScoreDir = path
+}
+
 func newHighScoreStorage() HighScoreStorage {
-	// 默认存储到应用私有目录
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		dir = "."
+	// 优先使用 Java 层传递的目录
+	dir := customHighScoreDir
+	if dir == "" {
+		var err error
+		dir, err = os.UserConfigDir()
+		if err != nil {
+			dir = "."
+		}
 	}
 	return &androidHighScoreStorage{
 		filePath: filepath.Join(dir, "highscores.json"),

@@ -12,15 +12,15 @@ const (
 	screenHeight = 80
 )
 
-func init() {
-	// yourgame.Game must implement ebiten.Game interface.
-	// For more details, see
-	// * https://pkg.go.dev/github.com/hajimehoshi/ebiten/v2#Game
-
+// StartGame 导出函数，供 Java 层在设置好高分目录后启动游戏
+//
+//export StartGame
+func StartGame() {
 	rush.LoadAssets()
 
 	ebiten.SetWindowSize(screenWidth*5, screenHeight*5)
 	ebiten.SetWindowTitle("Rush Out the Tunnel")
+
 	mobile.SetGame(rush.NewGame())
 }
 
@@ -36,6 +36,13 @@ func ShouldExit() bool {
 //export SetExitFlag
 func SetExitFlag(exit bool) {
 	rush.SetExitFlag(exit)
+}
+
+// SetHighScoreDir 导出函数，供 Java 层设置高分存储目录
+//
+//export SetHighScoreDir
+func SetHighScoreDir(path string) {
+	rush.SetHighScoreDir(path)
 }
 
 // Dummy is a dummy exported function.

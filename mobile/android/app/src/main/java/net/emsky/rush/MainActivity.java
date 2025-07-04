@@ -33,22 +33,27 @@ public class MainActivity extends AppCompatActivity {
         // 重要：初始化 Go 序列化上下文
         Seq.setContext(getApplicationContext());
 
-        // 设置全屏模式
-        setFullscreenMode();
-
-        // 启动 Ebiten 游戏
+        // 设置高分存储目录（调用 Go 层导出方法）
         try {
+            String highScoreDir = getFilesDir().getAbsolutePath();
+            net.emsky.rush.mobile.Mobile.setHighScoreDir(highScoreDir);
+            // 设置好高分目录后，启动游戏（调用 Go 层 StartGame）
+            net.emsky.rush.mobile.Mobile.startGame();
+
+            // 游戏对象注册后再创建 EbitenView
             EbitenView ebitenView = new EbitenView(this);
             setContentView(ebitenView);
-
-            // 启动定期检查退出状态的线程
-            startExitCheck();
-
         } catch (Exception e) {
             e.printStackTrace();
             // 如果初始化失败，显示错误信息
             setContentView(R.layout.activity_main);
         }
+
+        // 设置全屏模式
+        setFullscreenMode();
+
+        // 启动定期检查退出状态的线程
+        startExitCheck();
     }
 
     private void setFullscreenMode() {
@@ -81,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
                 // 检查是否需要退出应用
                 if (shouldExitApp()) {
                     finish();
+                    System.exit(0);
                     return;
                 }
                 // 每100ms检查一次
