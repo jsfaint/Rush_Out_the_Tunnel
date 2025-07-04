@@ -17,6 +17,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 //go:embed assets/images
@@ -588,7 +589,7 @@ func (g *Game) handleNameInputMouseClick() {
 		if g.pressEnd(x, y) {
 			return
 		}
-		g.handleNameInputClick(x, y)
+		g.handleNameInputClick()
 	}
 }
 
@@ -604,7 +605,7 @@ func (g *Game) handleNameInputTouch() {
 			g.pressEnd(x, y)
 			return
 		}
-		g.handleNameInputClick(x, y)
+		g.handleNameInputClick()
 	}
 }
 
@@ -630,7 +631,7 @@ func (g *Game) handleNameInputEnd() {
 }
 
 // handleNameInputClick 处理名字输入界面的点击事件
-func (g *Game) handleNameInputClick(x, y int) {
+func (g *Game) handleNameInputClick() {
 	// 检查是否点击了字符网格
 	for gridY := 0; gridY < 5; gridY++ {
 		for gridX := 0; gridX < 13; gridX++ {
@@ -1458,10 +1459,10 @@ func (g *Game) drawNameInputInstructions(screen *ebiten.Image) {
 // drawNameInputHighlights 高亮绘制（Erase/End红框）
 func (g *Game) drawNameInputHighlights(screen *ebiten.Image) {
 	if g.eraseBoxHighlightTimer > 0 {
-		ebitenutil.DrawRect(screen, eraseBoxX1, eraseBoxY1, eraseBoxX2-eraseBoxX1, eraseBoxY2-eraseBoxY1, color.RGBA{255, 0, 0, 64})
+		vector.DrawFilledRect(screen, float32(eraseBoxX1), float32(eraseBoxY1), float32(eraseBoxX2-eraseBoxX1), float32(eraseBoxY2-eraseBoxY1), color.RGBA{255, 0, 0, 64}, false)
 	}
 	if g.endBoxHighlightTimer > 0 {
-		ebitenutil.DrawRect(screen, endBoxX1, endBoxY1, endBoxX2-endBoxX1, endBoxY2-endBoxY1, color.RGBA{255, 0, 0, 64})
+		vector.DrawFilledRect(screen, float32(endBoxX1), float32(endBoxY1), float32(endBoxX2-endBoxX1), float32(endBoxY2-endBoxY1), color.RGBA{255, 0, 0, 64}, false)
 	}
 	if g.eraseBoxHighlightTimer > 0 {
 		g.eraseBoxHighlightTimer--
@@ -1487,9 +1488,9 @@ func (g *Game) drawNameInputCursor(screen *ebiten.Image) {
 	if g.nameInputCursorY < len(g.nameInputGridRects) && g.nameInputCursorX < len(g.nameInputGridRects[g.nameInputCursorY]) {
 		rect := g.nameInputGridRects[g.nameInputCursorY][g.nameInputCursorX]
 		if g.nameInputCursorY == 4 && g.nameInputCursorX == 10 {
-			ebitenutil.DrawRect(screen, float64(rect.Min.X), float64(rect.Min.Y), 24, 8, color.RGBA{0, 0, 255, 64})
+			vector.DrawFilledRect(screen, float32(rect.Min.X), float32(rect.Min.Y), 24, 8, color.RGBA{0, 0, 255, 64}, false)
 		} else {
-			ebitenutil.DrawRect(screen, float64(rect.Min.X), float64(rect.Min.Y), 8, 8, color.RGBA{0, 0, 255, 64})
+			vector.DrawFilledRect(screen, float32(rect.Min.X), float32(rect.Min.Y), 8, 8, color.RGBA{0, 0, 255, 64}, false)
 		}
 	}
 }
@@ -1532,7 +1533,7 @@ func isTouchInRect(r image.Rectangle) bool {
 // drawButton 绘制按钮（带背景色和可选图标）
 func drawButton(screen *ebiten.Image, rect image.Rectangle, bgColor color.Color, icon *ebiten.Image) {
 	// 绘制背景
-	ebitenutil.DrawRect(screen, float64(rect.Min.X), float64(rect.Min.Y), float64(rect.Dx()), float64(rect.Dy()), bgColor)
+	vector.DrawFilledRect(screen, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), bgColor, false)
 	// 绘制图标（居中）
 	if icon != nil {
 		iconW, iconH := icon.Size()
@@ -1546,7 +1547,7 @@ func drawButton(screen *ebiten.Image, rect image.Rectangle, bgColor color.Color,
 
 // drawSelector 绘制菜单选择高亮
 func drawSelector(screen *ebiten.Image, rect image.Rectangle, selColor color.Color) {
-	ebitenutil.DrawRect(screen, float64(rect.Min.X), float64(rect.Min.Y), float64(rect.Dx()), float64(rect.Dy()), selColor)
+	vector.DrawFilledRect(screen, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), selColor, false)
 }
 
 // drawMessage 绘制消息提示
