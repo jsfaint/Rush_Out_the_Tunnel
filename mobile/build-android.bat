@@ -5,7 +5,7 @@ echo ========================================
 
 echo.
 echo 步骤 1: 生成 rush.aar...
-ebitenmobile bind -target android -javapkg net.emsky.rush -o rush.aar .
+ebitenmobile bind -target android -javapkg net.emsky.rush -ldflags="-s -w" -o rush.aar .
 if %ERRORLEVEL% NEQ 0 (
     echo 错误: 生成 rush.aar 失败
     pause
