@@ -3,7 +3,6 @@ package mobile
 import (
 	"rush"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/mobile"
 )
 
@@ -16,11 +15,6 @@ const (
 //
 //export StartGame
 func StartGame() {
-	rush.LoadAssets()
-
-	ebiten.SetWindowSize(screenWidth*5, screenHeight*5)
-	ebiten.SetWindowTitle("Rush Out the Tunnel")
-
 	mobile.SetGame(rush.NewGame())
 }
 

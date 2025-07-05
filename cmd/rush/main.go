@@ -14,11 +14,6 @@ const (
 )
 
 func main() {
-	rush.LoadAssets()
-
-	ebiten.SetWindowSize(screenWidth*5, screenHeight*5)
-	ebiten.SetWindowTitle("Rush Out the Tunnel")
-
 	game := rush.NewGame()
 
 	if err := ebiten.RunGame(game); err != nil {

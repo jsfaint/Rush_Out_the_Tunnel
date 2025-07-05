@@ -170,7 +170,7 @@ func ShouldExit() bool {
 	return shouldExitApp
 }
 
-func LoadAssets() error {
+func loadAssets() error {
 	// 加载潜艇图像
 	submarineBytes, err := assetsFS.ReadFile("assets/images/submarine.png")
 	if err != nil {
@@ -245,6 +245,10 @@ func LoadAssets() error {
 }
 
 func NewGame() *Game {
+	loadAssets()
+	ebiten.SetWindowSize(screenWidth*5, screenHeight*5)
+	ebiten.SetWindowTitle("Rush Out the Tunnel")
+
 	highScoreStorage = NewHighScoreStorage()
 	g := &Game{}
 	_ = g.loadHighScores() // 启动时加载排行榜
