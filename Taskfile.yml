@@ -9,12 +9,12 @@ tasks:
     silent: false
   windows:
     cmds:
-      - cd cmd/rush && go build -o rush.exe
+      - cd cmd/rush && go build -ldflags="-s -w" -o rush.exe
     silent: false
   wasm:
     env:
       GOOS: js
       GOARCH: wasm
     cmds:
-      - cd cmd/rush && go build -o rush.wasm
+      - cd cmd/rush && go build -ldflags="-s -w" -o rush.wasm
     silent: false
