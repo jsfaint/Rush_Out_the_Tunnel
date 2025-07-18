@@ -1,8 +1,6 @@
 package rush
 
 import (
-	"bytes"
-	"embed"
 	"fmt"
 	"image"
 	"image/color"
@@ -19,9 +17,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
-
-//go:embed assets/images
-var assetsFS embed.FS
 
 const (
 	screenWidth  = 160
@@ -49,15 +44,8 @@ const (
 )
 
 var (
-	submarineImage     *ebiten.Image
-	titleImage         *ebiten.Image
-	gameoverImage      *ebiten.Image
-	winImage           *ebiten.Image
-	coinImage          *ebiten.Image
-	bombImage          *ebiten.Image
-	handDrawnFontImage *ebiten.Image
-	tunnelWallColor    = color.RGBA{139, 69, 19, 255}  // SaddleBrown
-	backgroundColor    = color.RGBA{70, 130, 180, 255} // SteelBlue
+	tunnelWallColor = color.RGBA{139, 69, 19, 255}  // SaddleBrown
+	backgroundColor = color.RGBA{70, 130, 180, 255} // SteelBlue
 )
 
 // 排行榜数据结构
@@ -171,77 +159,9 @@ func ShouldExit() bool {
 }
 
 func loadAssets() error {
-	// 加载潜艇图像
-	submarineBytes, err := assetsFS.ReadFile("assets/images/submarine.png")
-	if err != nil {
-		return err
-	}
-	submarineImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(submarineBytes))
-	if err != nil {
-		return err
-	}
-
-	// 加载标题图像
-	titleBytes, err := assetsFS.ReadFile("assets/images/title.png")
-	if err != nil {
-		return err
-	}
-	titleImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(titleBytes))
-	if err != nil {
-		return err
-	}
-
-	// 加载游戏结束图像
-	gameoverBytes, err := assetsFS.ReadFile("assets/images/gameover.png")
-	if err != nil {
-		return err
-	}
-	gameoverImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(gameoverBytes))
-	if err != nil {
-		return err
-	}
-
-	// 加载胜利图像
-	winBytes, err := assetsFS.ReadFile("assets/images/win.png")
-	if err != nil {
-		return err
-	}
-	winImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(winBytes))
-	if err != nil {
-		return err
-	}
-
-	// 加载金币图像
-	coinBytes, err := assetsFS.ReadFile("assets/images/coin.png")
-	if err != nil {
-		return err
-	}
-	coinImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(coinBytes))
-	if err != nil {
-		return err
-	}
-
-	// 加载炸弹图像
-	bombBytes, err := assetsFS.ReadFile("assets/images/bomb.png")
-	if err != nil {
-		return err
-	}
-	bombImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(bombBytes))
-	if err != nil {
-		return err
-	}
-
-	// 加载手绘字体图像
-	handDrawnFontBytes, err := assetsFS.ReadFile("assets/images/handdrawn_font.png")
-	if err != nil {
-		return err
-	}
-	handDrawnFontImage, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(handDrawnFontBytes))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	// 使用新的资源管理器预加载所有资源
+	rm := GetResourceManager()
+	return rm.PreloadResources()
 }
 
 func NewGame() *Game {
@@ -292,6 +212,8 @@ func NewGame() *Game {
 
 // drawHandDrawnText 使用手绘字体渲染文本
 func drawHandDrawnText(screen *ebiten.Image, str string, x, y int, clr color.Color) {
+	rm := GetResourceManager()
+	handDrawnFontImage := rm.GetResource(ResourceHandDrawnFont)
 	if handDrawnFontImage == nil {
 		return
 	}
@@ -952,14 +874,18 @@ func (g *Game) spawnCollectible() {
 		hasEmptySlot = true
 	}
 	if hasEmptySlot {
-		coinY := g.tunnelTopY + float64(rand.Intn(int(g.tunnelHeight)-10))
-		g.collectibles = append(g.collectibles, &Collectible{
-			image: coinImage,
-			x:     157,
-			y:     coinY,
-			w:     coinImage.Bounds().Dx(),
-			h:     coinImage.Bounds().Dy(),
-		})
+		rm := GetResourceManager()
+		coinImage := rm.GetResource(ResourceCoin)
+		if coinImage != nil {
+			coinY := g.tunnelTopY + float64(rand.Intn(int(g.tunnelHeight)-10))
+			g.collectibles = append(g.collectibles, &Collectible{
+				image: coinImage,
+				x:     157,
+				y:     coinY,
+				w:     coinImage.Bounds().Dx(),
+				h:     coinImage.Bounds().Dy(),
+			})
+		}
 	}
 	g.thisItem = g.distance
 	g.nextItem = (rand.Intn(5) + 1) * 32
@@ -1156,6 +1082,8 @@ func (g *Game) drawHighScores(screen *ebiten.Image) {
 func (g *Game) drawTitle(screen *ebiten.Image) {
 	screen.Fill(color.White)
 
+	rm := GetResourceManager()
+	titleImage := rm.GetResource(ResourceTitle)
 	if titleImage != nil {
 		op := &ebiten.DrawImageOptions{}
 		screen.DrawImage(titleImage, op)
@@ -1219,6 +1147,8 @@ func (g *Game) drawGameScene(screen *ebiten.Image) {
 	}
 
 	// Draw Player
+	rm := GetResourceManager()
+	submarineImage := rm.GetResource(ResourceSubmarine)
 	if submarineImage != nil {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Translate(g.player.x, g.player.y)
@@ -1237,10 +1167,14 @@ func (g *Game) drawGameHUD(screen *ebiten.Image) {
 	drawHandDrawnText(screen, scoreText, 5, 5, color.White)
 
 	// Draw bombs
-	for i := 0; i < g.bombs; i++ {
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(float64(screenWidth-15-i*8), 5)
-		screen.DrawImage(bombImage, op)
+	rm := GetResourceManager()
+	bombImage := rm.GetResource(ResourceBomb)
+	if bombImage != nil {
+		for i := 0; i < g.bombs; i++ {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64(screenWidth-15-i*8), 5)
+			screen.DrawImage(bombImage, op)
+		}
 	}
 
 	// Draw the virtual up button
@@ -1394,6 +1328,8 @@ func (g *Game) drawGameOver(screen *ebiten.Image) {
 		return
 	}
 	// 爆炸动画结束后显示gameover.png
+	rm := GetResourceManager()
+	gameoverImage := rm.GetResource(ResourceGameOver)
 	if gameoverImage != nil {
 		op := &ebiten.DrawImageOptions{}
 		imgW := gameoverImage.Bounds().Dx()
