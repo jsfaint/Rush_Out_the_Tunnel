@@ -364,17 +364,16 @@ func (g *Game) updateCountdown() error {
 
 // updateGame 处理游戏主循环逻辑
 func (g *Game) updateGame() error {
-	if g.handlePauseInput() {
+	if g.handlePauseInput() || g.handleExitInput() {
 		return nil
 	}
-	if g.handleExitInput() {
-		return nil
-	}
-	g.runGameLogic()
+	
+	g.updateGameLogic()
 	if g.state == StateGameOver {
 		g.explosionFrame = 0
 		g.explosionDone = false
 	}
+
 	return nil
 }
 
@@ -395,11 +394,6 @@ func (g *Game) handleExitInput() bool {
 		return true
 	}
 	return false
-}
-
-// runGameLogic 执行游戏主逻辑
-func (g *Game) runGameLogic() {
-	g.updateGameLogic()
 }
 
 // updateHelp 处理帮助界面输入
