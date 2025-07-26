@@ -1223,11 +1223,9 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 func (g *Game) loadHighScores() error {
 	loaded, err := highScoreStorage.Load()
 	if err != nil {
-		for i := range highScores {
-			highScores[i] = HighScore{"", 0}
-		}
 		return err
 	}
+
 	for i := range highScores {
 		if i < len(loaded) {
 			highScores[i] = loaded[i]
