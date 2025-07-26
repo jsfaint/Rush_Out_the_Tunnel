@@ -521,7 +521,7 @@ func (g *Game) handleNameInputMouseClick() {
 		if g.pressEnd(x, y) {
 			return
 		}
-		g.handleNameInputClick()
+		g.handleNameInputRect(isMouseInRect)
 	}
 }
 
@@ -537,7 +537,7 @@ func (g *Game) handleNameInputTouch() {
 			g.pressEnd(x, y)
 			return
 		}
-		g.handleNameInputClick()
+		g.handleNameInputRect(isTouchInRect)
 	}
 }
 
@@ -562,8 +562,8 @@ func (g *Game) handleNameInputEnd() {
 	}
 }
 
-// handleNameInputClick 处理名字输入界面的点击事件
-func (g *Game) handleNameInputClick() {
+// handleNameInputRect 处理名字输入界面的点击事件
+func (g *Game) handleNameInputRect(inRect func(r image.Rectangle) bool) {
 	// 检查是否点击了字符网格
 	for gridY := 0; gridY < 5; gridY++ {
 		for gridX := 0; gridX < 13; gridX++ {
@@ -572,7 +572,7 @@ func (g *Game) handleNameInputClick() {
 				continue
 			}
 
-			if isMouseInRect(g.nameInputGridRects[gridY][gridX]) || isTouchInRect(g.nameInputGridRects[gridY][gridX]) {
+			if inRect(g.nameInputGridRects[gridY][gridX]) {
 				g.nameInputCursorX = gridX
 				g.nameInputCursorY = gridY
 				g.inputSelectedChar()
