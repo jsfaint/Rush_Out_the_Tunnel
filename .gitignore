@@ -1,10 +1,11 @@
 .bmad-core/
 *.exe
 *.aar
-*.jar
 *.apk
 *.wasm
 *.json
 mobile/android/app/build/
 mobile/android/.gradle/
+mobile/android/build/
 .idea/
+rush-sources.jar
