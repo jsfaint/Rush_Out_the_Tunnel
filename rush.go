@@ -1426,13 +1426,13 @@ func (g *Game) drawNameInputHighlights(screen *ebiten.Image) {
 
 // drawNameInputDisplayName 绘制当前输入的名字
 func (g *Game) drawNameInputDisplayName(screen *ebiten.Image) {
-	displayName := g.nameInput
 	if g.nameInputPosition < len(g.nameInput) {
-		displayName = g.nameInput[:g.nameInputPosition] + "_" + g.nameInput[g.nameInputPosition:]
+		g.nameInput = g.nameInput[:g.nameInputPosition] + "_" + g.nameInput[g.nameInputPosition:]
 	} else {
-		displayName = g.nameInput + "_"
+		g.nameInput = g.nameInput + "_"
 	}
-	drawHandDrawnText(screen, displayName, 2, 15, color.RGBA{0, 0, 255, 255})
+
+	drawHandDrawnText(screen, g.nameInput, 2, 15, color.RGBA{0, 0, 255, 255})
 }
 
 // drawNameInputCursor 绘制选择框高亮
