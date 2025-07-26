@@ -572,7 +572,7 @@ func (g *Game) handleNameInputClick() {
 				continue
 			}
 
-			if isMouseInRect(g.nameInputGridRects[gridY][gridX]) {
+			if isMouseInRect(g.nameInputGridRects[gridY][gridX]) || isTouchInRect(g.nameInputGridRects[gridY][gridX]) {
 				g.nameInputCursorX = gridX
 				g.nameInputCursorY = gridY
 				g.inputSelectedChar()
