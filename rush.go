@@ -310,10 +310,10 @@ func (g *Game) spawnTunnel(x float64) {
 
 // updateTitle 处理标题界面输入与菜单选择
 func (g *Game) updateTitle() error {
-	if isKeyJustPressed(ebiten.KeyDown) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyDown) {
 		g.menuChoice = (g.menuChoice + 1) % 5
 	}
-	if isKeyJustPressed(ebiten.KeyUp) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
 		g.menuChoice--
 		if g.menuChoice < 0 {
 			g.menuChoice = 4
@@ -339,12 +339,12 @@ func (g *Game) updateTitle() error {
 			}
 		}
 	}
-	if isKeyJustPressed(ebiten.KeyEnter) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 		if err := g.selectMenuItem(); err != nil {
 			return err
 		}
 	}
-	if isKeyJustPressed(ebiten.KeyEscape) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		g.state = StateExitConfirm
 		return nil
 	}
@@ -367,7 +367,7 @@ func (g *Game) updateGame() error {
 	if g.handlePauseInput() || g.handleExitInput() {
 		return nil
 	}
-	
+
 	g.updateGameLogic()
 	if g.state == StateGameOver {
 		g.explosionFrame = 0
@@ -379,7 +379,7 @@ func (g *Game) updateGame() error {
 
 // handlePauseInput 检查并处理暂停输入
 func (g *Game) handlePauseInput() bool {
-	if isKeyJustPressed(ebiten.KeyZ) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
 		g.state = StatePause
 		g.showMessage("Paused", 60)
 		return true
@@ -389,7 +389,7 @@ func (g *Game) handlePauseInput() bool {
 
 // handleExitInput 检查并处理退出输入
 func (g *Game) handleExitInput() bool {
-	if isKeyJustPressed(ebiten.KeyEscape) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		g.state = StateExitConfirm
 		return true
 	}
@@ -398,7 +398,9 @@ func (g *Game) handleExitInput() bool {
 
 // updateHelp 处理帮助界面输入
 func (g *Game) updateHelp() error {
-	if isKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
+		inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 		g.state = StateTitle
 	}
 	return nil
@@ -406,7 +408,9 @@ func (g *Game) updateHelp() error {
 
 // updateAbout 处理关于界面输入
 func (g *Game) updateAbout() error {
-	if isKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
+		inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 		g.state = StateTitle
 	}
 	return nil
@@ -414,7 +418,9 @@ func (g *Game) updateAbout() error {
 
 // updateWin 处理胜利界面输入
 func (g *Game) updateWin() error {
-	if isKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
+		inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 		g.state = StateTitle
 	}
 	return nil
@@ -451,6 +457,7 @@ func (g *Game) pressEnd(x, y int) bool {
 		g.saveHighScores()
 		g.state = StateHighScores
 	}
+
 	return true
 }
 
@@ -462,24 +469,25 @@ func (g *Game) updateNameInput() error {
 	g.handleNameInputEnter()
 	g.handleNameInputBackspace()
 	g.handleNameInputEnd()
+
 	return nil
 }
 
 // handleNameInputNavigation 处理方向键导航
 func (g *Game) handleNameInputNavigation() {
-	if isKeyJustPressed(ebiten.KeyUp) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
 		g.nameInputCursorY--
 		if g.nameInputCursorY < 0 {
 			g.nameInputCursorY = 4
 		}
 	}
-	if isKeyJustPressed(ebiten.KeyDown) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyDown) {
 		g.nameInputCursorY++
 		if g.nameInputCursorY > 4 {
 			g.nameInputCursorY = 0
 		}
 	}
-	if isKeyJustPressed(ebiten.KeyLeft) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) {
 		g.nameInputCursorX--
 		if g.nameInputCursorY == 4 {
 			if g.nameInputCursorX < 0 {
@@ -491,7 +499,7 @@ func (g *Game) handleNameInputNavigation() {
 			}
 		}
 	}
-	if isKeyJustPressed(ebiten.KeyRight) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyRight) {
 		g.nameInputCursorX++
 		if g.nameInputCursorY == 4 {
 			if g.nameInputCursorX > 10 {
@@ -537,21 +545,21 @@ func (g *Game) handleNameInputTouch() {
 
 // handleNameInputEnter 处理字符输入（Enter键）
 func (g *Game) handleNameInputEnter() {
-	if isKeyJustPressed(ebiten.KeyEnter) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 		g.inputSelectedChar()
 	}
 }
 
 // handleNameInputBackspace 处理删除（Backspace键）
 func (g *Game) handleNameInputBackspace() {
-	if isKeyJustPressed(ebiten.KeyBackspace) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
 		g.pressBackspace(120, 40)
 	}
 }
 
 // handleNameInputEnd 处理确认输入（空格键结束）
 func (g *Game) handleNameInputEnd() {
-	if isKeyJustPressed(ebiten.KeySpace) {
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		g.pressEnd(120, 60)
 	}
 }
@@ -583,7 +591,8 @@ func (g *Game) inputSelectedChar() {
 	}
 
 	// 获取当前光标位置的字符
-	if g.nameInputCursorY < len(g.nameInputCharGrid) && g.nameInputCursorX < len(g.nameInputCharGrid[g.nameInputCursorY]) {
+	if g.nameInputCursorY < len(g.nameInputCharGrid) &&
+		g.nameInputCursorX < len(g.nameInputCharGrid[g.nameInputCursorY]) {
 		char := g.nameInputCharGrid[g.nameInputCursorY][g.nameInputCursorX]
 		if char != "" {
 			// 如果是空格键，结束输入
@@ -614,34 +623,40 @@ func (g *Game) inputSelectedChar() {
 
 // updatePause 处理暂停界面输入
 func (g *Game) updatePause() error {
-	if isKeyJustPressed(ebiten.KeyZ) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
 		g.state = StateGame
 		g.showMessage("Resume", 60)
 	}
+
 	return nil
 }
 
 // updateExitConfirm 处理退出确认界面输入
 func (g *Game) updateExitConfirm() error {
-	if isKeyJustPressed(ebiten.KeyY) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyY) {
 		// 设置退出标志而不是直接返回 ebiten.Termination
 		// 在 Android 中，ebiten.Termination 不会关闭应用
 		// 需要通过 MainActivity 来处理退出
 		SetExitFlag(true)
+
 		return nil
 	}
-	if isKeyJustPressed(ebiten.KeyN) || isKeyJustPressed(ebiten.KeyEscape) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyN) ||
+		inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		g.state = StateTitle
 	}
+
 	return nil
 }
 
 // updateHighScores 处理高分榜界面输入
 func (g *Game) updateHighScores() error {
-	if isKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
+		inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
 		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 		g.state = StateTitle
 	}
+
 	return nil
 }
 
@@ -652,6 +667,7 @@ func (g *Game) updateGameOver() error {
 		if g.explosionFrame > 30 {
 			g.explosionDone = true
 		}
+
 		return nil
 	}
 	if g.isHighScore(g.score) {
@@ -660,21 +676,25 @@ func (g *Game) updateGameOver() error {
 		g.nameInputCursorY = 0
 		g.nameInputPosition = 0
 		g.state = StateNameInput
-	} else if isKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
+		inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
 		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 		g.state = StateTitle
 	}
+
 	return nil
 }
 
 // updateHighScoresThenGame 处理高分榜后自动进入游戏
 func (g *Game) updateHighScoresThenGame() error {
-	if isKeyJustPressed(ebiten.KeyEnter) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
+		inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) ||
 		len(inpututil.AppendJustPressedTouchIDs(nil)) > 0 {
 		g.reset()
 		g.state = StateCountdown
 		return nil
 	}
+
 	return nil
 }
 
@@ -736,21 +756,24 @@ func (g *Game) updateGameLogic() {
 
 // isPressingBomb 检查当前是否有炸弹触发输入（键盘、鼠标、触摸）
 func (g *Game) isPressingBomb() bool {
-	if isKeyJustPressed(ebiten.KeyX) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyX) {
 		return true
 	}
+
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
 		if g.bombButtonRect.Min.X <= x && x < g.bombButtonRect.Max.X && g.bombButtonRect.Min.Y <= y && y < g.bombButtonRect.Max.Y {
 			return true
 		}
 	}
+
 	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
 		x, y := ebiten.TouchPosition(id)
 		if g.bombButtonRect.Min.X <= x && x < g.bombButtonRect.Max.X && g.bombButtonRect.Min.Y <= y && y < g.bombButtonRect.Max.Y {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -759,18 +782,21 @@ func (g *Game) isPressingUp() bool {
 	if ebiten.IsKeyPressed(ebiten.KeyUp) {
 		return true
 	}
+
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
 		if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
 			return true
 		}
 	}
+
 	for _, id := range ebiten.TouchIDs() {
 		x, y := ebiten.TouchPosition(id)
 		if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -1435,15 +1461,10 @@ func (g *Game) drawExitConfirm(screen *ebiten.Image) {
 	drawHandDrawnText(screen, "Exit game? Y/N", 40, 40, color.RGBA{255, 0, 0, 255})
 }
 
-// 工具函数区：输入检测与绘制相关
-// isKeyJustPressed 检查某个键是否刚被按下
-func isKeyJustPressed(key ebiten.Key) bool {
-	return inpututil.IsKeyJustPressed(key)
-}
-
 // isMouseInRect 检查鼠标是否在指定矩形内
 func isMouseInRect(r image.Rectangle) bool {
 	x, y := ebiten.CursorPosition()
+
 	return (image.Point{x, y}).In(r)
 }
 
@@ -1455,6 +1476,7 @@ func isTouchInRect(r image.Rectangle) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
