@@ -1243,13 +1243,11 @@ func (g *Game) saveHighScores() error {
 }
 
 func (g *Game) insertHighScore(name string, score int) {
-	inserted := false
-	for i := 0; i < len(highScores); i++ {
-		if !inserted && score > highScores[i].Score {
+	for i := range highScores {
+		if score > highScores[i].Score {
 			copy(highScores[i+1:], highScores[i:len(highScores)-1])
 			highScores[i] = HighScore{name, score}
-			inserted = true
-			break
+			return
 		}
 	}
 }
