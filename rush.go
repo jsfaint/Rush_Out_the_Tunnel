@@ -700,22 +700,23 @@ func (g *Game) updateHighScoresThenGame() error {
 
 // updateGameLogic 保留原有 updateGame 的主逻辑部分
 func (g *Game) updateGameLogic() {
-	// 1. 炸弹状态递减与爆炸效果
-	if g.isBombing {
-		g.updateBombState()
-		return
-	}
-
-	// 2. 炸弹触发
-	g.tryTriggerBomb()
-	if g.isBombing {
-		return
-	}
-
-	// 3. 距离、分数、胜利判定
+	// 1. 距离、分数、胜利判定（移到最前面，确保炸弹时也能更新）
 	g.updateDistanceAndScore()
 	if g.state == StateWin {
 		return
+	}
+
+	// 2. 炸弹状态递减与爆炸效果
+	if g.isBombing {
+		g.updateBombState()
+		// 注意：移除这里的return，让游戏继续处理其他逻辑
+	}
+
+	// 3. 炸弹触发
+	g.tryTriggerBomb()
+	if g.isBombing {
+		// 如果刚刚触发炸弹，跳过玩家操作但继续其他逻辑
+		// 不return，让游戏继续更新距离等
 	}
 
 	// 4. 隧道坡度与高度调整
@@ -733,22 +734,26 @@ func (g *Game) updateGameLogic() {
 	g.moveCollectibles()
 	g.removeOffscreenCollectibles()
 
-	// 7. 玩家操作与物理
-	isUp := g.isPressingUp()
-	g.updatePlayerVelocity(isUp)
-	g.clampPlayerVelocity()
-	g.updatePlayerPosition()
+	// 7. 玩家操作与物理（炸弹时跳过）
+	if !g.isBombing {
+		isUp := g.isPressingUp()
+		g.updatePlayerVelocity(isUp)
+		g.clampPlayerVelocity()
+		g.updatePlayerPosition()
+	}
 
-	// 8. 碰撞检测
-	if g.checkPlayerBoundaryCollision() {
-		g.state = StateGameOver
-		return
+	// 8. 碰撞检测（炸弹时跳过）
+	if !g.isBombing {
+		if g.checkPlayerBoundaryCollision() {
+			g.state = StateGameOver
+			return
+		}
+		if g.checkPlayerTunnelCollision() {
+			g.state = StateGameOver
+			return
+		}
+		g.checkPlayerCollectibleCollision()
 	}
-	if g.checkPlayerTunnelCollision() {
-		g.state = StateGameOver
-		return
-	}
-	g.checkPlayerCollectibleCollision()
 
 	// 9. 消息提示
 	g.updateTipMessage()
