@@ -9,6 +9,12 @@ import (
 
 type wasmHighScoreStorage struct{}
 
+// SetHighScoreDir is a no-op on WebAssembly
+// The actual implementation is in highscore_storage_android.go
+func SetHighScoreDir(path string) {
+	// WebAssembly uses localStorage, doesn't need a custom directory
+}
+
 func newHighScoreStorage() HighScoreStorage {
 	return &wasmHighScoreStorage{}
 }

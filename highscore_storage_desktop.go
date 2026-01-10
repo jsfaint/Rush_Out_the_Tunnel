@@ -9,6 +9,12 @@ import (
 
 type desktopHighScoreStorage struct{}
 
+// SetHighScoreDir is a no-op on desktop platforms
+// The actual implementation is in highscore_storage_android.go
+func SetHighScoreDir(path string) {
+	// Desktop platforms don't use a custom high score directory
+}
+
 func newHighScoreStorage() HighScoreStorage {
 	return &desktopHighScoreStorage{}
 }

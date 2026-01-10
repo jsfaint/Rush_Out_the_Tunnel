@@ -426,6 +426,13 @@ func (g *Game) updateWin() error {
 	return nil
 }
 
+// submitHighScore submits the high score and transitions to high scores screen
+func (g *Game) submitHighScore(name string) {
+	g.insertHighScore(name, g.score)
+	g.saveHighScores()
+	g.state = StateHighScores
+}
+
 func (g *Game) pressBackspace(x, y int) bool {
 	if x < eraseBoxX1 || x > eraseBoxX2 || y < eraseBoxY1 || y > eraseBoxY2 {
 		return false
@@ -448,15 +455,11 @@ func (g *Game) pressEnd(x, y int) bool {
 	}
 
 	g.endBoxHighlightTimer = 8
-	if len(g.nameInput) > 0 {
-		g.insertHighScore(g.nameInput, g.score)
-		g.saveHighScores()
-		g.state = StateHighScores
-	} else {
-		g.insertHighScore("Player", g.score)
-		g.saveHighScores()
-		g.state = StateHighScores
+	name := g.nameInput
+	if name == "" {
+		name = "Player"
 	}
+	g.submitHighScore(name)
 
 	return true
 }
@@ -476,40 +479,24 @@ func (g *Game) updateNameInput() error {
 // handleNameInputNavigation 处理方向键导航
 func (g *Game) handleNameInputNavigation() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
-		g.nameInputCursorY--
-		if g.nameInputCursorY < 0 {
-			g.nameInputCursorY = 4
-		}
+		g.nameInputCursorY = (g.nameInputCursorY - 1 + 5) % 5
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyDown) {
-		g.nameInputCursorY++
-		if g.nameInputCursorY > 4 {
-			g.nameInputCursorY = 0
-		}
+		g.nameInputCursorY = (g.nameInputCursorY + 1) % 5
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) {
-		g.nameInputCursorX--
+		maxX := 12
 		if g.nameInputCursorY == 4 {
-			if g.nameInputCursorX < 0 {
-				g.nameInputCursorX = 10
-			}
-		} else {
-			if g.nameInputCursorX < 0 {
-				g.nameInputCursorX = 12
-			}
+			maxX = 10
 		}
+		g.nameInputCursorX = (g.nameInputCursorX - 1 + maxX + 1) % (maxX + 1)
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyRight) {
-		g.nameInputCursorX++
+		maxX := 12
 		if g.nameInputCursorY == 4 {
-			if g.nameInputCursorX > 10 {
-				g.nameInputCursorX = 0
-			}
-		} else {
-			if g.nameInputCursorX > 12 {
-				g.nameInputCursorX = 0
-			}
+			maxX = 10
 		}
+		g.nameInputCursorX = (g.nameInputCursorX + 1) % (maxX + 1)
 	}
 }
 
@@ -531,16 +518,18 @@ func (g *Game) handleNameInputMouseClick() {
 func (g *Game) handleNameInputTouch() {
 	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
 		x, y := ebiten.TouchPosition(id)
-		if x >= 110 && x < 150 && y >= 50 && y < 58 {
+		// 检查是否点击了 Erase 框
+		if x >= eraseBoxX1 && x <= eraseBoxX2 && y >= eraseBoxY1 && y <= eraseBoxY2 {
 			g.pressBackspace(x, y)
 			return
 		}
-		if x >= 110 && x < 150 && y >= 68 && y < 76 {
+		// 检查是否点击了 End 框
+		if x >= endBoxX1 && x <= endBoxX2 && y >= endBoxY1 && y <= endBoxY2 {
 			g.pressEnd(x, y)
 			return
 		}
-		g.handleNameInputRect(isTouchInRect)
 	}
+	g.handleNameInputRect(isTouchInRect)
 }
 
 // handleNameInputEnter 处理字符输入（Enter键）
@@ -597,15 +586,11 @@ func (g *Game) inputSelectedChar() {
 		if char != "" {
 			// 如果是空格键，结束输入
 			if char == " " {
-				if len(g.nameInput) > 0 {
-					g.insertHighScore(g.nameInput, g.score)
-					g.saveHighScores()
-					g.state = StateHighScores
-				} else {
-					g.insertHighScore("Player", g.score)
-					g.saveHighScores()
-					g.state = StateHighScores
+				name := g.nameInput
+				if name == "" {
+					name = "Player"
 				}
+				g.submitHighScore(name)
 				return
 			}
 
@@ -764,22 +749,10 @@ func (g *Game) isPressingBomb() bool {
 	if inpututil.IsKeyJustPressed(ebiten.KeyX) {
 		return true
 	}
-
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		x, y := ebiten.CursorPosition()
-		if g.bombButtonRect.Min.X <= x && x < g.bombButtonRect.Max.X && g.bombButtonRect.Min.Y <= y && y < g.bombButtonRect.Max.Y {
-			return true
-		}
+	if isMouseButtonJustPressedInRect(g.bombButtonRect, ebiten.MouseButtonLeft) {
+		return true
 	}
-
-	for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
-		x, y := ebiten.TouchPosition(id)
-		if g.bombButtonRect.Min.X <= x && x < g.bombButtonRect.Max.X && g.bombButtonRect.Min.Y <= y && y < g.bombButtonRect.Max.Y {
-			return true
-		}
-	}
-
-	return false
+	return isTouchInRect(g.bombButtonRect)
 }
 
 // isPressingUp 检查当前是否有上升输入（键盘、鼠标、触摸）
@@ -787,22 +760,10 @@ func (g *Game) isPressingUp() bool {
 	if ebiten.IsKeyPressed(ebiten.KeyUp) {
 		return true
 	}
-
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-		x, y := ebiten.CursorPosition()
-		if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
-			return true
-		}
+	if isMouseButtonInRect(g.upButtonRect, ebiten.MouseButtonLeft) {
+		return true
 	}
-
-	for _, id := range ebiten.TouchIDs() {
-		x, y := ebiten.TouchPosition(id)
-		if g.upButtonRect.Min.X <= x && x < g.upButtonRect.Max.X && g.upButtonRect.Min.Y <= y && y < g.upButtonRect.Max.Y {
-			return true
-		}
-	}
-
-	return false
+	return isTouchInRectActive(g.upButtonRect)
 }
 
 // updateBombState 处理炸弹状态递减、爆炸效果（清空隧道和道具）
@@ -887,30 +848,21 @@ func (g *Game) shouldSpawnCollectible() bool {
 
 // spawnCollectible 生成新道具（如金币）
 func (g *Game) spawnCollectible() {
-	// 检查是否有空闲的道具槽位
-	hasEmptySlot := false
-	for _, c := range g.collectibles {
-		if c == nil {
-			hasEmptySlot = true
-			break
-		}
+	if len(g.collectibles) >= 5 {
+		return
 	}
-	if !hasEmptySlot && len(g.collectibles) < 5 {
-		hasEmptySlot = true
-	}
-	if hasEmptySlot {
-		rm := GetResourceManager()
-		coinImage := rm.GetResource(ResourceCoin)
-		if coinImage != nil {
-			coinY := g.tunnelTopY + float64(rand.Intn(int(g.tunnelHeight)-10))
-			g.collectibles = append(g.collectibles, &Collectible{
-				image: coinImage,
-				x:     157,
-				y:     coinY,
-				w:     coinImage.Bounds().Dx(),
-				h:     coinImage.Bounds().Dy(),
-			})
-		}
+
+	rm := GetResourceManager()
+	coinImage := rm.GetResource(ResourceCoin)
+	if coinImage != nil {
+		coinY := g.tunnelTopY + float64(rand.Intn(int(g.tunnelHeight)-10))
+		g.collectibles = append(g.collectibles, &Collectible{
+			image: coinImage,
+			x:     157,
+			y:     coinY,
+			w:     coinImage.Bounds().Dx(),
+			h:     coinImage.Bounds().Dy(),
+		})
 	}
 	g.thisItem = g.distance
 	g.nextItem = (rand.Intn(5) + 1) * 32
@@ -945,12 +897,8 @@ func (g *Game) updatePlayerVelocity(isUp bool) {
 
 // clampPlayerVelocity 限制玩家速度在合理范围
 func (g *Game) clampPlayerVelocity() {
-	if g.player.vy > 1.0 {
-		g.player.vy = 1.0
-	}
-	if g.player.vy < -1.0 {
-		g.player.vy = -1.0
-	}
+	const maxVelocity = 1.0
+	g.player.vy = math.Max(-maxVelocity, math.Min(maxVelocity, g.player.vy))
 }
 
 // updatePlayerPosition 根据速度更新玩家位置
@@ -1465,7 +1413,6 @@ func (g *Game) drawExitConfirm(screen *ebiten.Image) {
 // isMouseInRect 检查鼠标是否在指定矩形内
 func isMouseInRect(r image.Rectangle) bool {
 	x, y := ebiten.CursorPosition()
-
 	return (image.Point{x, y}).In(r)
 }
 
@@ -1477,7 +1424,35 @@ func isTouchInRect(r image.Rectangle) bool {
 			return true
 		}
 	}
+	return false
+}
 
+// isTouchInRectActive 检查是否有活动的触摸点在指定矩形内
+func isTouchInRectActive(r image.Rectangle) bool {
+	for _, id := range ebiten.TouchIDs() {
+		x, y := ebiten.TouchPosition(id)
+		if (image.Point{x, y}).In(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// isMouseButtonInRect 检查鼠标按钮是否在指定矩形内按下
+func isMouseButtonInRect(r image.Rectangle, button ebiten.MouseButton) bool {
+	if ebiten.IsMouseButtonPressed(button) {
+		x, y := ebiten.CursorPosition()
+		return (image.Point{x, y}).In(r)
+	}
+	return false
+}
+
+// isMouseButtonJustPressedInRect 检查鼠标按钮是否刚在指定矩形内按下
+func isMouseButtonJustPressedInRect(r image.Rectangle, button ebiten.MouseButton) bool {
+	if inpututil.IsMouseButtonJustPressed(button) {
+		x, y := ebiten.CursorPosition()
+		return (image.Point{x, y}).In(r)
+	}
 	return false
 }
 
